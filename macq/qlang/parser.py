@@ -81,6 +81,11 @@ class TimeStep(ASTNode):
     """Represents a single time step with parallel operations"""
     operations: List[GateOperation]
     
+    def __init__(self, operations: List[GateOperation], line: int = 0, column: int = 0):
+        self.operations = operations
+        self.line = line
+        self.column = column
+    
     def __repr__(self):
         ops_str = "; ".join(str(op) for op in self.operations)
         return f"TimeStep({ops_str})"
@@ -90,6 +95,11 @@ class TimeStep(ASTNode):
 class Program(ASTNode):
     """Root node representing entire Q-Lang program"""
     time_steps: List[TimeStep]
+    
+    def __init__(self, time_steps: List[TimeStep], line: int = 0, column: int = 0):
+        self.time_steps = time_steps
+        self.line = line
+        self.column = column
     
     def __repr__(self):
         steps_str = "\n".join(f"  {i}: {ts}" for i, ts in enumerate(self.time_steps))
