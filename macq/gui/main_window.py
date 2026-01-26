@@ -189,7 +189,7 @@ class MainWindow(QMainWindow):
         
         self.qubit_spinner = QSpinBox()
         self.qubit_spinner.setMinimum(1)
-        self.qubit_spinner.setMaximum(10)
+        self.qubit_spinner.setMaximum(25)  # Increased from 10 to 25 for Shor's algorithm
         self.qubit_spinner.setValue(3)
         toolbar.addWidget(self.qubit_spinner)
         
