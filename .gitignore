@@ -30,8 +30,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-*.egg
+.Python
 *.egg-info/
+dist/
+build/
+*.spec
+
+# PyInstaller
+*.dmg
+*.app
 dist/
 build/
 *.whl
