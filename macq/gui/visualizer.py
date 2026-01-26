@@ -114,7 +114,8 @@ class ProbabilityChart(FigureCanvasQTAgg):
         
         # 提取显著概率
         sig_probs = [probs[i] for i in significant_indices]
-        labels = [f"|{i:0{num_qubits}b}⟩" for i in significant_indices]
+        # 使用简单二进制标签（避免特殊字符显示问题）
+        labels = [f"{i:0{num_qubits}b}" for i in significant_indices]
         
         # 创建渐变颜色
         colors = []
@@ -123,39 +124,41 @@ class ProbabilityChart(FigureCanvasQTAgg):
             intensity = 0.3 + 0.7 * (p / max(sig_probs)) if max(sig_probs) > 0 else 0.5
             colors.append((0.29 * intensity, 0.56 * intensity, 0.89 * intensity))
         
-        # 绘制柱状图
+        # 绘制柱状图 - 加宽柱子
+        bar_width = 0.7
         bars = self.axes.bar(range(len(sig_probs)), sig_probs, 
+                            width=bar_width,
                             color=colors, 
                             edgecolor='white', 
-                            linewidth=1.5,
-                            alpha=0.9)
+                            linewidth=2,
+                            alpha=0.95)
         
         # 高亮最高概率
         if sig_probs:
             max_idx = sig_probs.index(max(sig_probs))
             bars[max_idx].set_color('#FF6B9D')
             bars[max_idx].set_edgecolor('#FF1744')
-            bars[max_idx].set_linewidth(2.5)
+            bars[max_idx].set_linewidth(3)
         
         # 设置标题和标签
         self.axes.set_title(
-            f'{num_qubits}量子比特态概率分布',
-            fontsize=14,
+            f'{num_qubits}量子比特 - 概率分布',
+            fontsize=15,
             fontweight='bold',
             color='#2C3E50',
-            pad=15
+            pad=20
         )
         
-        self.axes.set_xlabel('量子态', fontsize=11, color='#555', fontweight='600')
-        self.axes.set_ylabel('概率', fontsize=11, color='#555', fontweight='600')
-        self.axes.set_ylim([0, min(1.1, max(sig_probs) * 1.2) if sig_probs else 1])
+        self.axes.set_xlabel('二进制态 (MSB...LSB)', fontsize=12, color='#555', fontweight='600')
+        self.axes.set_ylabel('概率', fontsize=12, color='#555', fontweight='600')
+        self.axes.set_ylim([0, min(1.1, max(sig_probs) * 1.25) if sig_probs else 1])
         
         # 设置x轴
         self.axes.set_xticks(range(len(sig_probs)))
-        self.axes.set_xticklabels(labels, rotation=45, ha='right', fontsize=9)
+        self.axes.set_xticklabels(labels, rotation=0, ha='center', fontsize=11, fontweight='bold')
         
         # 美化网格
-        self.axes.grid(True, axis='y', alpha=0.2, linestyle='--', linewidth=0.8)
+        self.axes.grid(True, axis='y', alpha=0.15, linestyle='--', linewidth=1)
         self.axes.set_axisbelow(True)
         
         # 移除顶部和右侧边框
@@ -163,20 +166,22 @@ class ProbabilityChart(FigureCanvasQTAgg):
         self.axes.spines['right'].set_visible(False)
         self.axes.spines['left'].set_color('#CCCCCC')
         self.axes.spines['bottom'].set_color('#CCCCCC')
+        self.axes.spines['left'].set_linewidth(1.5)
+        self.axes.spines['bottom'].set_linewidth(1.5)
         
-        # 在柱子上显示概率值（只显示>5%的）
+        # 在柱子上显示概率值
         for i, (bar, prob) in enumerate(zip(bars, sig_probs)):
-            if prob > 0.05:  # 只标注大于5%的
+            if prob > 0.01:  # 显示>1%的
                 height = bar.get_height()
                 self.axes.text(
                     bar.get_x() + bar.get_width()/2., 
-                    height + 0.02,
-                    f'{prob:.1%}',
+                    height + 0.015,
+                    f'{prob*100:.1f}%',
                     ha='center', 
                     va='bottom',
-                    fontsize=9,
+                    fontsize=10,
                     fontweight='bold',
-                    color='#FF6B9D' if i == max_idx else '#4A90E2'
+                    color='#FF1744' if i == max_idx else '#2C3E50'
                 )
         
         self.figure.tight_layout()
