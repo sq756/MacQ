@@ -58,6 +58,80 @@ class MeasurementNode(ASTNode):
 
 
 @dataclass
+class Condition(ASTNode):
+    """Condition expression for classical control"""
+    pass
+
+
+@dataclass
+class BitCondition(Condition):
+    """Simple bit condition: c0 or c0 == 1 or c0 == 0"""
+    bit_name: str
+    expected_value: Optional[int] = None  # None means "if c0" (equivalent to c0 == 1)
+    
+    def __init__(self, bit_name: str, expected_value: Optional[int] = None, 
+                 line: int = 0, column: int = 0):
+        self.bit_name = bit_name
+        self.expected_value = expected_value
+        self.line = line
+        self.column = column
+    
+    def __repr__(self):
+        if self.expected_value is None:
+            return f"{self.bit_name}"
+        return f"{self.bit_name} == {self.expected_value}"
+
+
+@dataclass
+class AndCondition(Condition):
+    """Logical AND of conditions"""
+    left: Condition
+    right: Condition
+    
+    def __init__(self, left: Condition, right: Condition, line: int = 0, column: int = 0):
+        self.left = left
+        self.right = right
+        self.line = line
+        self.column = column
+    
+    def __repr__(self):
+        return f"({self.left} and {self.right})"
+
+
+@dataclass
+class OrCondition(Condition):
+    """Logical OR of conditions"""
+    left: Condition
+    right: Condition
+    
+    def __init__(self, left: Condition, right: Condition, line: int = 0, column: int = 0):
+        self.left = left
+        self.right = right
+        self.line = line
+        self.column = column
+    
+    def __repr__(self):
+        return f"({self.left} or {self.right})"
+
+
+@dataclass
+class ConditionalNode(ASTNode):
+    """Conditional gate operation: if condition then operation"""
+    condition: Condition
+    operation: 'GateOperation'  # Forward reference
+    
+    def __init__(self, condition: Condition, operation: 'GateOperation', 
+                 line: int = 0, column: int = 0):
+        self.condition = condition
+        self.operation = operation
+        self.line = line
+        self.column = column
+    
+    def __repr__(self):
+        return f"if {self.condition} then {self.operation}"
+
+
+@dataclass
 class SingleQubitGate(ASTNode):
     """Single-qubit gate operation"""
     gate_name: str
@@ -117,8 +191,8 @@ class ThreeQubitGate(ASTNode):
         return f"{self.gate_name} {self.control1}-{self.control2}-{self.target}"
 
 
-# Type alias for gate operations (including measurements)
-GateOperation = Union[SingleQubitGate, TwoQubitGate, ThreeQubitGate, MeasurementNode]
+# Type alias for gate operations (including measurements and conditionals)
+GateOperation = Union[SingleQubitGate, TwoQubitGate, ThreeQubitGate, MeasurementNode, ConditionalNode]
 
 
 @dataclass

@@ -27,6 +27,12 @@ class TokenType(Enum):
     
     # Keywords
     MEASURE = auto()        # measure
+    IF = auto()             # if
+    THEN = auto()           # then
+    AND = auto()            # and
+    OR = auto()             # or
+    NOT = auto()            # not
+    EQUALS = auto()         # ==
     
     # Special
     COMMENT = auto()        # # ...
@@ -55,11 +61,18 @@ class QLangTokenizer:
     # Token patterns (order matters for matching)
     TOKEN_PATTERNS = [
         (TokenType.COMMENT, r'#[^\n]*'),
-        (TokenType.MEASURE, r'\bmeasure\b'),  # Keyword - must be before identifiers
+        # Keywords - must be before identifiers
+        (TokenType.MEASURE, r'\bmeasure\b'),
+        (TokenType.IF, r'\bif\b'),
+        (TokenType.THEN, r'\bthen\b'),
+        (TokenType.AND, r'\band\b'),
+        (TokenType.OR, r'\bor\b'),
+        (TokenType.NOT, r'\bnot\b'),
         (TokenType.GATE_NAME, r'[A-Z][A-Za-z†]*'),  # Must start with uppercase
         (TokenType.IDENTIFIER, r'[a-z][a-z0-9_]*'),  # Lowercase identifiers for classical bits
         (TokenType.NUMBER, r'\d+'),
         (TokenType.PARAMETER, r'\([^)]+\)'),
+        (TokenType.EQUALS, r'=='),  # Must be before other operators
         (TokenType.ARROW, r'->'),  # Must be before DASH
         (TokenType.SEMICOLON, r';'),
         (TokenType.COMMA, r','),
