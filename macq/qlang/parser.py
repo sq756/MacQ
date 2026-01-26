@@ -43,6 +43,14 @@ class SingleQubitGate(ASTNode):
     qubits: List[int]
     parameter: Optional[Parameter] = None
     
+    def __init__(self, gate_name: str, qubits: List[int], parameter: Optional[Parameter] = None, 
+                 line: int = 0, column: int = 0):
+        self.gate_name = gate_name
+        self.qubits = qubits
+        self.parameter = parameter
+        self.line = line
+        self.column = column
+    
     def __repr__(self):
         param_str = f"({self.parameter.expression})" if self.parameter else ""
         qubits_str = ", ".join(map(str, self.qubits))
@@ -56,6 +64,13 @@ class TwoQubitGate(ASTNode):
     control: int
     target: int
     
+    def __init__(self, gate_name: str, control: int, target: int, line: int = 0, column: int = 0):
+        self.gate_name = gate_name
+        self.control = control
+        self.target = target
+        self.line = line
+        self.column = column
+    
     def __repr__(self):
         return f"{self.gate_name} {self.control}-{self.target}"
 
@@ -67,6 +82,15 @@ class ThreeQubitGate(ASTNode):
     control1: int
     control2: int
     target: int
+    
+    def __init__(self, gate_name: str, control1: int, control2: int, target: int,
+                 line: int = 0, column: int = 0):
+        self.gate_name = gate_name
+        self.control1 = control1
+        self.control2 = control2
+        self.target = target
+        self.line = line
+        self.column = column
     
     def __repr__(self):
         return f"{self.gate_name} {self.control1}-{self.control2}-{self.target}"
