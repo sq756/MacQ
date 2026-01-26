@@ -9,15 +9,20 @@ Licensed under MIT License
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QStatusBar, QMenuBar, QMenu, QToolBar,
-    QLabel, QPushButton, QMessageBox, QGraphicsDropShadowEffect
+    QLabel, QPushButton, QMessageBox, QGraphicsDropShadowEffect, QSpinBox
 )
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QAction, QKeySequence, QColor
+from PySide6.QtGui import QAction, QKeySequence, QColor, QIcon
 
 from ..c_bridge import version
+from ..qlang.compiler import QLangDecompiler
 from .styles import (
     MAIN_WINDOW_STYLE, RUN_BUTTON_STYLE, CLEAR_BUTTON_STYLE
 )
+from .gate_palette import GatePaletteWidget
+from .circuit_editor import CircuitEditorWidget
+from .visualizer import VisualizerWidget
+from .qlang_editor import QLangEditorWidget
 
 
 class MainWindow(QMainWindow):
@@ -50,28 +55,33 @@ class MainWindow(QMainWindow):
         main_layout = QHBoxLayout(central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         
-        # 使用QSplitter实现可调整大小的三栏布局
-        self.splitter = QSplitter(Qt.Horizontal)
-        
-        # 左侧：量子门面板
-        from .gate_palette import GatePaletteWidget
+        # Initialize components
         self.gate_palette = GatePaletteWidget()
-        self.splitter.addWidget(self.gate_palette)
-        
-        # 中间：电路编辑器
-        from .circuit_editor import CircuitEditorWidget
         self.circuit_editor = CircuitEditorWidget()
-        self.splitter.addWidget(self.circuit_editor)
+        self.visualizer = VisualizerWidget()
+        self.qlang_editor = QLangEditorWidget()
+        self.decompiler = QLangDecompiler()
+
+        # Main horizontal splitter
+        main_splitter = QSplitter(Qt.Horizontal)
         
-        # 右侧：可视化面板
-        from .visualizer import VisualizationWidget
-        self.visualizer = VisualizationWidget()
-        self.splitter.addWidget(self.visualizer)
+        # Left: Gate palette
+        main_splitter.addWidget(self.gate_palette)
         
-        # 设置初始大小比例 (1:3:2)
-        self.splitter.setSizes([200, 600, 400])
+        # Center: Vertical splitter for circuit editor and Q-Lang editor
+        center_splitter = QSplitter(Qt.Vertical)
+        center_splitter.addWidget(self.circuit_editor)
+        center_splitter.addWidget(self.qlang_editor)
+        center_splitter.setSizes([400, 300])  # Initial sizes
+        main_splitter.addWidget(center_splitter)
         
-        main_layout.addWidget(self.splitter)
+        # Right: Visualizer
+        main_splitter.addWidget(self.visualizer)
+        
+        # Set initial sizes for the main splitter (e.g., 1:2:1)
+        main_splitter.setSizes([200, 800, 400])
+        
+        main_layout.addWidget(main_splitter)
         
     def _create_menus(self):
         """创建菜单栏"""
@@ -159,18 +169,17 @@ class MainWindow(QMainWindow):
         self.addToolBar(toolbar)
         
         # 运行按钮 - 渐变样式
-        run_btn = QPushButton("▶ Run Circuit")
-        run_btn.setStyleSheet(RUN_BUTTON_STYLE)
-        run_btn.clicked.connect(self._run_circuit)
+        self.run_btn = QPushButton("▶ Run Circuit")
+        self.run_btn.setStyleSheet(RUN_BUTTON_STYLE)
         
         # 添加阴影效果
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(15)
         shadow.setColor(QColor(91, 134, 229, 100))
         shadow.setOffset(0, 4)
-        run_btn.setGraphicsEffect(shadow)
+        self.run_btn.setGraphicsEffect(shadow)
         
-        toolbar.addWidget(run_btn)
+        toolbar.addWidget(self.run_btn)
         toolbar.addSeparator()
         
         # 量子比特控制
@@ -178,18 +187,15 @@ class MainWindow(QMainWindow):
         qubit_label.setStyleSheet("color: #B0B0B0; font-weight: 600;")
         toolbar.addWidget(qubit_label)
         
-        from PySide6.QtWidgets import QSpinBox
-        self.qubit_spinbox = QSpinBox()
-        self.qubit_spinbox.setMinimum(1)
-        self.qubit_spinbox.setMaximum(10)
-        self.qubit_spinbox.setValue(3)
-        self.qubit_spinbox.valueChanged.connect(self._on_qubit_count_changed)
-        toolbar.addWidget(self.qubit_spinbox)
+        self.qubit_spinner = QSpinBox()
+        self.qubit_spinner.setMinimum(1)
+        self.qubit_spinner.setMaximum(10)
+        self.qubit_spinner.setValue(3)
+        toolbar.addWidget(self.qubit_spinner)
         
         toolbar.addSeparator()
         
         # 清空按钮 - 红色渐变
-        clear_btn = QPushButton("🗑 Clear")
         clear_btn.setStyleSheet(CLEAR_BUTTON_STYLE)
         clear_btn.clicked.connect(self._clear_circuit)
         
@@ -215,6 +221,34 @@ class MainWindow(QMainWindow):
         self.statusbar.addPermanentWidget(self.info_label)
         
         self._update_statusbar()
+        
+    def _sync_circuit_to_code(self):
+        """Sync visual circuit to Q-Lang code"""
+        # Get gates from circuit editor
+        gates = self.circuit_editor.gates
+        
+        if not gates:
+            self.qlang_editor.set_code("# Empty circuit\n")
+            return
+        
+        # Decompile to Q-Lang
+        code = self.decompiler.decompile(gates, self.qubit_spinner.value())
+        
+        # Update editor (without triggering recompile)
+        self.qlang_editor.set_code(code)
+    
+    def _sync_code_to_circuit(self, gates):
+        """Sync Q-Lang code to visual circuit"""
+        # Clear current circuit
+        self.circuit_editor.clear_circuit()
+        
+        # Add compiled gates
+        for gate in gates:
+            self.circuit_editor.gates.append(gate)
+        
+        # Update display
+        self.circuit_editor.update()
+        self.statusBar().showMessage(f'Compiled {len(gates)} gates from Q-Lang', 2000)
         
     def _connect_signals(self):
         """连接信号槽"""
