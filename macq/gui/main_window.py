@@ -21,7 +21,7 @@ from .styles import (
 )
 from .gate_palette import GatePaletteWidget
 from .circuit_editor import CircuitEditorWidget
-from .visualizer import VisualizerWidget
+from .visualizer import VisualizationWidget
 from .qlang_editor import QLangEditorWidget
 
 
@@ -58,7 +58,7 @@ class MainWindow(QMainWindow):
         # Initialize components
         self.gate_palette = GatePaletteWidget()
         self.circuit_editor = CircuitEditorWidget()
-        self.visualizer = VisualizerWidget()
+        self.visualizer = VisualizationWidget()
         self.qlang_editor = QLangEditorWidget()
         self.decompiler = QLangDecompiler()
 
