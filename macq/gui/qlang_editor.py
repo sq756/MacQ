@@ -50,10 +50,13 @@ class QLangHighlighter(QSyntaxHighlighter):
         # Define patterns
         self.patterns = [
             (r'\b[A-Z][A-Za-z†]*\b', 'gate'),  # Gate names
+            (r'\bmeasure\b', 'gate'),  # measure keyword (v2.0)
+            (r'\bif\b|\bthen\b|\band\b|\bor\b', 'gate'),  # Control flow keywords (v2.0)
             (r'\d+', 'number'),  # Numbers
             (r'#[^\n]*', 'comment'),  # Comments
-            (r'[;,\-]', 'operator'),  # Operators
+            (r'[;,\-]|->|==', 'operator'),  # Operators (added -> and ==)
             (r'\([^)]+\)', 'parameter'),  # Parameters
+            (r'[a-z][a-z0-9_]*', 'parameter'),  # Classical bit identifiers (v2.0)
         ]
     
     def highlightBlock(self, text):
@@ -113,7 +116,14 @@ class QLangEditorWidget(QWidget):
         # Code editor
         self.editor = QTextEdit()
         self.editor.setFont(QFont("Monaco", 12))
-        self.editor.setPlaceholderText("# Enter Q-Lang code here\n# Example:\nH 0\nCNOT 0-1")
+        self.editor.setPlaceholderText(
+            "# Q-Lang v2.0: Now with measurements and conditionals!\n"
+            "# Bell state:\n"
+            "H 0\n"
+            "CNOT 0-1\n"
+            "measure 0 -> c0\n"
+            "measure 1 -> c1"
+        )
         self.editor.setStyleSheet("""
             QTextEdit {
                 background: #FFFFFF;
