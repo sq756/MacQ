@@ -89,6 +89,7 @@ class QLangTokenizer:
         'CNOT', 'CX', 'CZ', 'SWAP',  # Two qubit
         'Toffoli', 'CCNOT', 'CCZ',  # Three qubit
         'MOD_EXP', 'MOD_ADD', 'MOD_MUL',  # Modular arithmetic (v2.0)
+        'QFT', 'QFT_INV',  # Quantum Fourier Transform (v2.0)
     }
     
     def __init__(self):

@@ -7,7 +7,7 @@ from typing import List, Set, Optional
 from .parser import (
     Program, TimeStep, GateOperation,
     SingleQubitGate, TwoQubitGate, ThreeQubitGate,
-    MeasurementNode, ConditionalNode, ModularGate
+    MeasurementNode, ConditionalNode, ModularGate, QFTNode
 )
 
 
@@ -95,6 +95,8 @@ class QLangValidator:
             self._validate_measurement(operation)
         elif isinstance(operation, ConditionalNode):
             self._validate_conditional(operation)
+        elif isinstance(operation, QFTNode):
+            self._validate_qft(operation)
     
     def _validate_single_qubit_gate(self, gate: SingleQubitGate):
         """Validate single-qubit gate"""
@@ -201,6 +203,22 @@ class QLangValidator:
         # Recursively validate the inner operation
         self._validate_operation(node.operation)
     
+    def _validate_qft(self, node: QFTNode):
+        """Validate QFT operation"""
+        # Check all qubits in range
+        for qubit in node.qubits:
+            if qubit < 0 or qubit >= self.num_qubits:
+                raise ValidationError(
+                    f"Line {node.line}: Qubit {qubit} out of range [0, {self.num_qubits-1}]"
+                )
+        
+        # Check for duplicate qubits
+        if len(node.qubits) != len(set(node.qubits)):
+            duplicates = [q for q in node.qubits if node.qubits.count(q) > 1]
+            raise ValidationError(
+                f"Line {node.line}: Duplicate qubit(s) {set(duplicates)} in QFT operation"
+            )
+    
     def _get_involved_qubits(self, operation: GateOperation) -> Set[int]:
         """Get all qubits involved in an operation"""
         if isinstance(operation, SingleQubitGate):
@@ -215,6 +233,8 @@ class QLangValidator:
             return {operation.qubit}
         elif isinstance(operation, ConditionalNode):
             return self._get_involved_qubits(operation.operation)
+        elif isinstance(operation, QFTNode):
+            return set(operation.qubits)
         return set()
 
 

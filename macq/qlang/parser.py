@@ -158,6 +158,25 @@ class ModularGate(ASTNode):
 
 
 @dataclass
+class QFTNode(ASTNode):
+    """Quantum Fourier Transform: QFT or QFT_INV on register"""
+    is_inverse: bool  # True for QFT_INV, False for QFT
+    qubits: List[int]  # Qubits to apply QFT to
+    
+    def __init__(self, is_inverse: bool, qubits: List[int], 
+                 line: int = 0, column: int = 0):
+        self.is_inverse = is_inverse
+        self.qubits = qubits
+        self.line = line
+        self.column = column
+    
+    def __repr__(self):
+        name = "QFT_INV" if self.is_inverse else "QFT"
+        qubits_str = ','.join(map(str, self.qubits))
+        return f"{name} {qubits_str}"
+
+
+@dataclass
 class SingleQubitGate(ASTNode):
     """Single-qubit gate operation"""
     gate_name: str
@@ -217,8 +236,8 @@ class ThreeQubitGate(ASTNode):
         return f"{self.gate_name} {self.control1}-{self.control2}-{self.target}"
 
 
-# Type alias for gate operations (including measurements, conditionals, and modular gates)
-GateOperation = Union[SingleQubitGate, TwoQubitGate, ThreeQubitGate, MeasurementNode, ConditionalNode, ModularGate]
+# Type alias for gate operations (including measurements, conditionals, modular gates, and QFT)
+GateOperation = Union[SingleQubitGate, TwoQubitGate, ThreeQubitGate, MeasurementNode, ConditionalNode, ModularGate, QFTNode]
 
 
 @dataclass
@@ -267,6 +286,9 @@ class QLangParser:
     
     # Modular arithmetic gates (v2.0)
     MODULAR_GATES = {'MOD_EXP', 'MOD_ADD', 'MOD_MUL'}
+    
+    # Built-in transforms (v2.0)
+    QFT_GATES = {'QFT', 'QFT_INV'}
     
     def __init__(self):
         self.tokenizer = QLangTokenizer()
@@ -379,7 +401,10 @@ class QLangParser:
                 )
         
         # Determine gate type
-        if gate_name in self.MODULAR_GATES:
+        if gate_name in self.QFT_GATES:
+            # QFT gates don't have parameters, go directly to parsing qubits
+            return self._parse_qft_gate(gate_name, line, col)
+        elif gate_name in self.MODULAR_GATES:
             return self._parse_modular_gate(gate_name, mod_params[0], mod_params[1], line, col)
         elif gate_name in self.THREE_QUBIT_GATES:
             return self._parse_three_qubit_gate(gate_name, line, col)
@@ -572,6 +597,22 @@ class QLangParser:
             target_qubits.append(int(target_token.value))
         
         return ModularGate(gate_name, base, modulus, control_qubits, target_qubits, line, col)
+    
+    def _parse_qft_gate(self, gate_name: str, line: int, col: int) -> QFTNode:
+        """Parse QFT gate: QFT 0,1,2,3 or QFT_INV 0,1,2,3"""
+        is_inverse = (gate_name == 'QFT_INV')
+        
+        # Parse qubit list (comma-separated)
+        qubits = []
+        qubit_token = self._expect(TokenType.NUMBER)
+        qubits.append(int(qubit_token.value))
+        
+        while self._current_token().type == TokenType.COMMA:
+            self._advance()
+            qubit_token = self._expect(TokenType.NUMBER)
+            qubits.append(int(qubit_token.value))
+        
+        return QFTNode(is_inverse, qubits, line, col)
     
     # Helper methods
     def _current_token(self) -> Token:
