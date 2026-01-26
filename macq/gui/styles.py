@@ -107,7 +107,6 @@ QTabWidget::pane {
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     background: rgba(20, 24, 45, 0.4);
-    backdrop-filter: blur(10px);
 }
 
 QTabBar::tab {
@@ -138,7 +137,6 @@ QLabel {
 GATE_PALETTE_STYLE = """
 QWidget {
     background: rgba(20, 24, 45, 0.6);
-    backdrop-filter: blur(20px);
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -155,7 +153,6 @@ QPushButton {
         stop:0 rgba(74, 144, 226, 0.8),
         stop:1 rgba(74, 144, 226, 0.6)
     );
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 QPushButton:hover {
@@ -164,7 +161,6 @@ QPushButton:hover {
         stop:0 rgba(84, 154, 236, 0.9),
         stop:1 rgba(84, 154, 236, 0.7)
     );
-    transform: translateY(-2px);
 }
 
 QPushButton:pressed {
@@ -202,7 +198,6 @@ QWidget {
         stop:0 rgba(15, 19, 35, 0.4),
         stop:1 rgba(25, 29, 50, 0.4)
     );
-    backdrop-filter: blur(15px);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 16px;
 }
@@ -211,7 +206,6 @@ QWidget {
 VISUALIZER_STYLE = """
 QWidget {
     background: rgba(20, 24, 45, 0.5);
-    backdrop-filter: blur(20px);
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.08);
 }

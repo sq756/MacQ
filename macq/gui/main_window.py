@@ -9,7 +9,8 @@ Licensed under MIT License
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QStatusBar, QMenuBar, QMenu, QToolBar,
-    QLabel, QPushButton, QMessageBox, QGraphicsDropShadowEffect, QSpinBox
+    QLabel, QPushButton, QMessageBox, QGraphicsDropShadowEffect, QSpinBox, 
+    QScrollArea
 )
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QAction, QKeySequence, QColor, QIcon
@@ -70,7 +71,36 @@ class MainWindow(QMainWindow):
         
         # Center: Vertical splitter for circuit editor and Q-Lang editor
         center_splitter = QSplitter(Qt.Vertical)
-        center_splitter.addWidget(self.circuit_editor)
+        
+        # Wrap circuit editor in a scroll area
+        self.circuit_scroll = QScrollArea()
+        self.circuit_scroll.setWidget(self.circuit_editor)
+        self.circuit_scroll.setWidgetResizable(True)
+        self.circuit_scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background-color: #0F111A;
+            }
+            QScrollBar:horizontal, QScrollBar:vertical {
+                border: none;
+                background: #1E2237;
+                width: 10px;
+                height: 10px;
+                margin: 0px;
+            }
+            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
+                background: #4A90E2;
+                min-width: 20px;
+                min-height: 20px;
+                border-radius: 5px;
+            }
+            QScrollBar::add-line, QScrollBar::sub-line {
+                border: none;
+                background: none;
+            }
+        """)
+        
+        center_splitter.addWidget(self.circuit_scroll)
         center_splitter.addWidget(self.qlang_editor)
         center_splitter.setSizes([400, 300])  # Initial sizes
         main_splitter.addWidget(center_splitter)

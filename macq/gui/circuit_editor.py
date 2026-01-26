@@ -3,8 +3,8 @@ MacQ GUI - Circuit Editor Widget
 Visual quantum circuit editor with drag-and-drop support
 """
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMenu
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMenu, QSizePolicy
+from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QPainter, QPen, QColor, QFont, QLinearGradient, QAction
 
 from ..c_bridge import QuantumState
@@ -29,6 +29,7 @@ class CircuitEditorWidget(QWidget):
         super().__init__()
         self.setMinimumSize(450, 350)
         self.setAcceptDrops(True)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
         # 应用Premium样式
         self.setStyleSheet(CIRCUIT_EDITOR_STYLE)
@@ -93,6 +94,7 @@ class CircuitEditorWidget(QWidget):
         """设置量子比特数量"""
         self.num_qubits = count
         self.gates = []  # 清空电路
+        self.updateGeometry()
         self.update()
         self.circuit_changed.emit()
         
@@ -107,6 +109,7 @@ class CircuitEditorWidget(QWidget):
     def clear_circuit(self):
         """清空电路"""
         self.gates = []
+        self.updateGeometry()
         self.update()
         self.circuit_changed.emit()
     
@@ -139,9 +142,23 @@ class CircuitEditorWidget(QWidget):
             'params': {}
         })
         
+        self.updateGeometry()
         self.update()
         self.gate_added.emit(gate_type, qubit)
         self.circuit_changed.emit()
+    
+    def sizeHint(self):
+        """计算推荐大小"""
+        max_ts = 0
+        if self.gates:
+            max_ts = max(g['time_step'] for g in self.gates)
+        
+        width = max(800, 200 + (max_ts + 2) * self.time_step_width)
+        height = max(600, 100 + self.num_qubits * self.qubit_spacing)
+        return QSize(width, height)
+        
+    def minimumSizeHint(self):
+        return self.sizeHint()
     
     def _next_available_time_step(self, qubit):
         """找到下一个可用的time_step"""
@@ -261,6 +278,9 @@ class CircuitEditorWidget(QWidget):
         """绘制电路"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
+        
+        # 绘制背景 (手动绘制以确保滚动时背景跟随)
+        painter.fillRect(self.rect(), QColor("#0F111A"))
         
         # 绘制量子比特线
         self._draw_qubit_lines(painter)
