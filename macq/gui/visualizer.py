@@ -114,8 +114,17 @@ class ProbabilityChart(FigureCanvasQTAgg):
         
         # 提取显著概率
         sig_probs = [probs[i] for i in significant_indices]
-        # 使用简单二进制标签（避免特殊字符显示问题）
-        labels = [f"{i:0{num_qubits}b}" for i in significant_indices]
+        # 使用简单二进制标签 (寄存器拆分显示)
+        labels = []
+        for i in significant_indices:
+            bin_str = f"{i:0{num_qubits}b}"
+            if num_qubits == 8:
+                # 专门为 Shor 算法优化：[目标寄存器 4位] [控制寄存器 4位]
+                labels.append(f"T:{bin_str[:4]} C:{bin_str[4:]}")
+            elif num_qubits > 8:
+                labels.append(f"{bin_str[:-4]} {bin_str[-4:]}")
+            else:
+                labels.append(bin_str)
         
         # 创建渐变颜色
         colors = []

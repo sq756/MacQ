@@ -90,11 +90,18 @@ class CircuitEditorWidget(QWidget):
         # 显示菜单
         menu.exec(self.mapToGlobal(pos))
     
+    def _update_size(self):
+        """Update widget size to trigger scrollbars"""
+        hint = self.sizeHint()
+        # Use setFixedSize to force the scroll area to show scrollbars
+        self.setFixedSize(hint)
+        self.updateGeometry()
+
     def set_qubit_count(self, count):
         """设置量子比特数量"""
         self.num_qubits = count
         self.gates = []  # 清空电路
-        self.updateGeometry()
+        self._update_size()
         self.update()
         self.circuit_changed.emit()
         
@@ -109,7 +116,14 @@ class CircuitEditorWidget(QWidget):
     def clear_circuit(self):
         """清空电路"""
         self.gates = []
-        self.updateGeometry()
+        self._update_size()
+        self.update()
+        self.circuit_changed.emit()
+    
+    def clear_circuit(self):
+        """清空电路"""
+        self.gates = []
+        self._update_size()
         self.update()
         self.circuit_changed.emit()
     
@@ -142,7 +156,7 @@ class CircuitEditorWidget(QWidget):
             'params': {}
         })
         
-        self.updateGeometry()
+        self._update_size()
         self.update()
         self.gate_added.emit(gate_type, qubit)
         self.circuit_changed.emit()
@@ -153,8 +167,9 @@ class CircuitEditorWidget(QWidget):
         if self.gates:
             max_ts = max(g['time_step'] for g in self.gates)
         
-        width = max(800, 200 + (max_ts + 2) * self.time_step_width)
-        height = max(600, 100 + self.num_qubits * self.qubit_spacing)
+        # 增加一些边缘留白 (Margin)
+        width = max(800, 300 + (max_ts + 2) * self.time_step_width)
+        height = max(600, 150 + self.num_qubits * self.qubit_spacing)
         return QSize(width, height)
         
     def minimumSizeHint(self):

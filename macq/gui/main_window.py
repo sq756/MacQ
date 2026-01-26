@@ -75,34 +75,15 @@ class MainWindow(QMainWindow):
         # Wrap circuit editor in a scroll area
         self.circuit_scroll = QScrollArea()
         self.circuit_scroll.setWidget(self.circuit_editor)
-        self.circuit_scroll.setWidgetResizable(True)
-        self.circuit_scroll.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background-color: #0F111A;
-            }
-            QScrollBar:horizontal, QScrollBar:vertical {
-                border: none;
-                background: #1E2237;
-                width: 10px;
-                height: 10px;
-                margin: 0px;
-            }
-            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
-                background: #4A90E2;
-                min-width: 20px;
-                min-height: 20px;
-                border-radius: 5px;
-            }
-            QScrollBar::add-line, QScrollBar::sub-line {
-                border: none;
-                background: none;
-            }
-        """)
+        self.circuit_scroll.setWidgetResizable(False) # Honor fixed size exactly
+        self.circuit_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.circuit_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.circuit_scroll.viewport().setStyleSheet("background-color: #0F111A;")
+        self.circuit_scroll.setStyleSheet("QScrollArea { border: none; background: #0F111A; }")
         
         center_splitter.addWidget(self.circuit_scroll)
         center_splitter.addWidget(self.qlang_editor)
-        center_splitter.setSizes([400, 300])  # Initial sizes
+        center_splitter.setSizes([500, 300]) # 5:3 ratio
         main_splitter.addWidget(center_splitter)
         
         # Right: Visualizer
@@ -277,22 +258,20 @@ class MainWindow(QMainWindow):
         for gate in gates:
             self.circuit_editor.gates.append(gate)
         
-        # Update display
+        # Update geometry and display
+        self.circuit_editor._update_size()
         self.circuit_editor.update()
+        self._update_statusbar()
         self.statusBar().showMessage(f'Compiled {len(gates)} gates from Q-Lang', 2000)
         
     def _connect_signals(self):
         """连接信号槽"""
-        # 电路改变时更新可视化和代码
-        self.circuit_editor.circuit_changed.connect(
-            self._on_circuit_changed
-        )
+        # 电路改变时更新可视化、代码和状态栏
+        self.circuit_editor.circuit_changed.connect(self._on_circuit_changed)
         self.circuit_editor.circuit_changed.connect(self._sync_circuit_to_code)
         
         # 门被添加时的反馈
-        self.circuit_editor.gate_added.connect(
-            self._on_gate_added
-        )
+        self.circuit_editor.gate_added.connect(self._on_gate_added)
         
         # Q-Lang editor signals
         self.qlang_editor.code_compiled.connect(self._sync_code_to_circuit)
@@ -307,6 +286,7 @@ class MainWindow(QMainWindow):
     def _on_circuit_changed(self):
         """电路改变时的处理"""
         self._update_statusbar()
+        self.visualizer.clear()
         
     def _on_gate_added(self, gate_type, qubit):
         """门被添加时的反馈"""
