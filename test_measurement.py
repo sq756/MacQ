@@ -15,7 +15,7 @@ print("Test 1: Simple measurement")
 print("=" * 60)
 code1 = """
 H 0
-measure 0 -> C0
+measure 0 -> c0
 """
 try:
     ast1 = parser.parse(code1)
@@ -31,8 +31,8 @@ print("=" * 60)
 code2 = """
 H 0
 CNOT 0-1
-measure 0 -> C0
-measure 1 -> C1
+measure 0 -> c0
+measure 1 -> c1
 """
 try:
     ast2 = parser.parse(code2)
@@ -47,8 +47,8 @@ print("Test 3: Mixed operations")
 print("=" * 60)
 code3 = """
 H 0, 1
-CNOT 0-1; measure 2 -> C2
-measure 0 -> C0; measure 1 -> C1
+CNOT 0-1; measure 2 -> c2
+measure 0 -> c0; measure 1 -> c1
 """
 try:
     ast3 = parser.parse(code3)

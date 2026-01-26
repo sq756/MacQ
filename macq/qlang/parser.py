@@ -267,15 +267,16 @@ class QLangParser:
         # Expect arrow
         self._expect(TokenType.ARROW)
         
-        # Parse classical bit name (should be like "c0", "c1", etc.)
-        # For now, we'll accept GATE_NAME token (lowercase letters)
+        # Parse classical bit name (lowercase identifier like "c0", "c1")
         cbit_token = self._current_token()
-        if cbit_token.type == TokenType.GATE_NAME:
-            # Accept it even though it's uppercase - user might use C0 style
+        if cbit_token.type == TokenType.IDENTIFIER:
+            cbit_name = cbit_token.value
+            self._advance()
+        elif cbit_token.type == TokenType.GATE_NAME:
+            # Accept uppercase too (like C0)
             cbit_name = cbit_token.value
             self._advance()
         else:
-            # Try to parse as a simple identifier (fallback)
             raise SyntaxError(
                 f"Line {cbit_token.line}:{cbit_token.column}: "
                 f"Expected classical bit name after '->', got {cbit_token.type.name}"

@@ -13,6 +13,7 @@ class TokenType(Enum):
     """Token types for Q-Lang"""
     # Literals
     GATE_NAME = auto()      # H, X, CNOT, etc.
+    IDENTIFIER = auto()     # c0, c1, etc. (lowercase identifiers)
     NUMBER = auto()         # 0, 1, 2, etc.
     PARAMETER = auto()      # (π/4), (0.5), etc.
     
@@ -54,8 +55,9 @@ class QLangTokenizer:
     # Token patterns (order matters for matching)
     TOKEN_PATTERNS = [
         (TokenType.COMMENT, r'#[^\n]*'),
-        (TokenType.MEASURE, r'\bmeasure\b'),  # Keyword - must be before GATE_NAME
+        (TokenType.MEASURE, r'\bmeasure\b'),  # Keyword - must be before identifiers
         (TokenType.GATE_NAME, r'[A-Z][A-Za-z†]*'),  # Must start with uppercase
+        (TokenType.IDENTIFIER, r'[a-z][a-z0-9_]*'),  # Lowercase identifiers for classical bits
         (TokenType.NUMBER, r'\d+'),
         (TokenType.PARAMETER, r'\([^)]+\)'),
         (TokenType.ARROW, r'->'),  # Must be before DASH
