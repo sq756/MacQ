@@ -252,15 +252,26 @@ class MainWindow(QMainWindow):
         
     def _connect_signals(self):
         """连接信号槽"""
-        # 电路改变时更新可视化
+        # 电路改变时更新可视化和代码
         self.circuit_editor.circuit_changed.connect(
             self._on_circuit_changed
         )
+        self.circuit_editor.circuit_changed.connect(self._sync_circuit_to_code)
         
         # 门被添加时的反馈
         self.circuit_editor.gate_added.connect(
             self._on_gate_added
         )
+        
+        # Q-Lang editor signals
+        self.qlang_editor.code_compiled.connect(self._sync_code_to_circuit)
+        
+        # Toolbar buttons
+        self.run_btn.clicked.connect(self._run_circuit)
+        self.qubit_spinner.valueChanged.connect(self._on_qubit_count_changed)
+        
+        # Set initial qubit count for Q-Lang editor
+        self.qlang_editor.set_qubit_count(self.qubit_spinner.value())
         
     def _on_circuit_changed(self):
         """电路改变时的处理"""
@@ -273,6 +284,7 @@ class MainWindow(QMainWindow):
     def _on_qubit_count_changed(self, count):
         """量子比特数改变"""
         self.circuit_editor.set_qubit_count(count)
+        self.qlang_editor.set_qubit_count(count)  # Update Q-Lang validator
         self._update_statusbar()
         
     def _update_statusbar(self):
