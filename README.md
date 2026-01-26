@@ -157,7 +157,7 @@ MacQ/
 ### 联系方式
 
 - **GitHub Issues**: [https://github.com/sq756/MacQ/issues](https://github.com/sq756/MacQ/issues)
-- **Email**: dev@macq.quantum.dev
+- **Email**: sq2000@stu.pku.edu.cn
 
 ---
 
@@ -301,7 +301,7 @@ This project is licensed under the [MIT License](LICENSE).
 ### Contact
 
 - **GitHub Issues**: [https://github.com/sq756/MacQ/issues](https://github.com/sq756/MacQ/issues)
-- **Email**: dev@macq.quantum.dev
+- **Email**:sq2000@stu.pku.edu.cn
 
 ---
 
