@@ -278,6 +278,125 @@ class CircuitEditorWidget(QWidget):
             # 获取颜色
             color = QColor(colors.get(gate_type, '#95A5A6'))
             
+            # ============================================================
+            # V2.0 Gates: MEASURE, MOD_EXP, QFT
+            # ============================================================
+            
+            # MEASURE gate - Special meter icon
+            if gate_type == 'MEASURE':
+                classical_bit = gate.get('params', {}).get('classical_bit', 'c?')
+                
+                # Draw meter box
+                painter.setBrush(QColor("#E74C3C"))
+                painter.setPen(QPen(QColor("#C0392B"), 2))
+                painter.drawRoundedRect(x - 25, y - 20, 50, 40, 8, 8)
+                
+                # Draw meter arc
+                painter.setPen(QPen(QColor("#FFFFFF"), 2))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawArc(x - 15, y - 10, 30, 20, 0, 180 * 16)
+                
+                # Draw needle
+                painter.drawLine(x, y, x + 8, y - 8)
+                
+                # Draw classical bit label
+                painter.setPen(QColor("#FFFFFF"))
+                font = QFont("SF Pro Display", 9, QFont.Bold)
+                painter.setFont(font)
+                painter.drawText(x - 25, y + 12, 50, 15, Qt.AlignCenter, f"→{classical_bit}")
+                continue
+            
+            # MOD_EXP gate - Multi-qubit modular operation
+            if gate_type in ['MOD_EXP', 'MOD_ADD', 'MOD_MUL']:
+                params = gate.get('params', {})
+                control_qubits = params.get('control_qubits', [])
+                target_qubits = params.get('target_qubits', [])
+                base = params.get('base', '?')
+                modulus = params.get('modulus', '?')
+                
+                if control_qubits and target_qubits:
+                    # Calculate bounding box
+                    all_qubits = control_qubits + target_qubits
+                    min_qubit = min(all_qubits)
+                    max_qubit = max(all_qubits)
+                    
+                    top_y = 50 + min_qubit * self.qubit_spacing
+                    bottom_y = 50 + max_qubit * self.qubit_spacing
+                    height = bottom_y - top_y + 40
+                    
+                    # Draw connector box
+                    painter.setBrush(QColor(155, 89, 182, 40))
+                    painter.setPen(QPen(QColor("#9B59B6"), 3, Qt.DashLine))
+                    painter.drawRoundedRect(x - 35, top_y - 20, 70, height, 12, 12)
+                    
+                    # Draw main gate label
+                    painter.setBrush(QColor("#9B59B6"))
+                    painter.setPen(QPen(QColor("#8E44AD"), 2))
+                    painter.drawRoundedRect(x - 30, y - 25, 60, 50, 10, 10)
+                    
+                    painter.setPen(QColor("#FFFFFF"))
+                    font = QFont("SF Pro Display", 10, QFont.Bold)
+                    painter.setFont(font)
+                    painter.drawText(x - 30, y - 25, 60, 25, Qt.AlignCenter, gate_type)
+                    
+                    # Draw parameters
+                    font = QFont("SF Pro Display", 8)
+                    painter.setFont(font)
+                    painter.drawText(x - 30, y, 60, 25, Qt.AlignCenter, f"({base},{modulus})")
+                    
+                    # Draw control/target markers
+                    for cq in control_qubits:
+                        cy = 50 + cq * self.qubit_spacing
+                        painter.setBrush(QColor("#4A90E2"))
+                        painter.setPen(QPen(QColor("#667eea"), 2))
+                        painter.drawEllipse(x - 6, cy - 6, 12, 12)
+                    
+                    for tq in target_qubits:
+                        ty = 50 + tq * self.qubit_spacing
+                        painter.setBrush(Qt.NoBrush)
+                        painter.setPen(QPen(QColor("#9B59B6"), 2))
+                        painter.drawRect(x - 6, ty - 6, 12, 12)
+                    
+                    continue
+            
+            # QFT/QFT_INV gate - Multi-qubit transform
+            if gate_type in ['QFT', 'QFT_INV']:
+                params = gate.get('params', {})
+                qft_qubits = params.get('qubits', [qubit])
+                is_inverse = params.get('is_inverse', gate_type == 'QFT_INV')
+                
+                if len(qft_qubits) > 1:
+                    # Multi-qubit QFT
+                    min_q = min(qft_qubits)
+                    max_q = max(qft_qubits)
+                    top_y = 50 + min_q * self.qubit_spacing
+                    bottom_y = 50 + max_q * self.qubit_spacing
+                    height = bottom_y - top_y + 40
+                    
+                    # Draw spanning box
+                    qft_color = QColor("#27AE60") if not is_inverse else QColor("#E67E22")
+                    painter.setBrush(QColor(qft_color.red(), qft_color.green(), qft_color.blue(), 40))
+                    painter.setPen(QPen(qft_color, 3))
+                    painter.drawRoundedRect(x - 35, top_y - 20, 70, height, 12, 12)
+                    
+                    # Draw QFT label
+                    painter.setBrush(qft_color)
+                    painter.setPen(QPen(qft_color.darker(120), 2))
+                    center_y = (top_y + bottom_y) // 2
+                    painter.drawRoundedRect(x - 30, center_y - 25, 60, 50, 10, 10)
+                    
+                    painter.setPen(QColor("#FFFFFF"))
+                    font = QFont("SF Pro Display", 11, QFont.Bold)
+                    painter.setFont(font)
+                    label = "QFT†" if is_inverse else "QFT"
+                    painter.drawText(x - 30, center_y - 25, 60, 50, Qt.AlignCenter, label)
+                    
+                    continue
+            
+            # ============================================================
+            # Original V1.0 Gates
+            # ============================================================
+            
             # 如果是多量子比特门，先绘制控制线
             if control is not None and gate_type in ['CNOT', 'CZ', 'SWAP']:
                 control_y = 50 + control * self.qubit_spacing
