@@ -510,6 +510,131 @@ MacQError qstate_apply_toffoli(QuantumState *qs, int control1, int control2,
   return MACQ_SUCCESS;
 }
 
+MacQError qstate_apply_cp(QuantumState *qs, int control, int target,
+                          double phi) {
+  if (!is_valid_qubit_index(qs, control) || !is_valid_qubit_index(qs, target)) {
+    return MACQ_ERROR_INVALID_INDEX;
+  }
+
+  size_t mask_control = 1ULL << control;
+  size_t mask_target = 1ULL << target;
+  cplx phase = cexp(I * phi);
+
+  for (size_t i = 0; i < qs->vector_size; i++) {
+    if ((i & mask_control) && (i & mask_target)) {
+      qs->state_vector[i] *= phase;
+    }
+  }
+
+  return MACQ_SUCCESS;
+}
+
+MacQError qstate_apply_qft(QuantumState *qs, int num_qubits, const int *qubits,
+                           bool inverse) {
+  if (!qs || !qubits || num_qubits < 1)
+    return MACQ_ERROR_NULL_POINTER;
+
+  if (inverse) {
+    // Inverse QFT
+    for (int i = 0; i < num_qubits; i++) {
+      for (int j = 0; j < i; j++) {
+        double phi = -2.0 * M_PI / pow(2.0, i - j + 1);
+        qstate_apply_cp(qs, qubits[j], qubits[i], phi);
+      }
+      qstate_apply_h(qs, qubits[i]);
+    }
+    // Swap qubits to reverse order
+    for (int i = 0; i < num_qubits / 2; i++) {
+      qstate_apply_swap(qs, qubits[i], qubits[num_qubits - 1 - i]);
+    }
+  } else {
+    // Forward QFT
+    for (int i = num_qubits - 1; i >= 0; i--) {
+      qstate_apply_h(qs, qubits[i]);
+      for (int j = i - 1; j >= 0; j--) {
+        double phi = 2.0 * M_PI / pow(2.0, i - j + 1);
+        qstate_apply_cp(qs, qubits[j], qubits[i], phi);
+      }
+    }
+    // Swap qubits to reverse order
+    for (int i = 0; i < num_qubits / 2; i++) {
+      qstate_apply_swap(qs, qubits[i], qubits[num_qubits - 1 - i]);
+    }
+  }
+
+  return MACQ_SUCCESS;
+}
+
+// Helper for modular exponentiation: (base^exp) % modulus
+static long long power_mod(long long base, long long exp, long long modulus) {
+  long long res = 1;
+  base %= modulus;
+  while (exp > 0) {
+    if (exp % 2 == 1)
+      res = (res * base) % modulus;
+    base = (base * base) % modulus;
+    exp /= 2;
+  }
+  return res;
+}
+
+MacQError qstate_apply_mod_exp(QuantumState *qs, int a, int N, int num_controls,
+                               const int *controls, int num_targets,
+                               const int *targets) {
+  if (!qs || !controls || !targets)
+    return MACQ_ERROR_NULL_POINTER;
+
+  // Clone current state for safe manipulation
+  cplx *new_vector = (cplx *)calloc(qs->vector_size, sizeof(cplx));
+  if (!new_vector)
+    return MACQ_ERROR_OUT_OF_MEMORY;
+
+  for (size_t i = 0; i < qs->vector_size; i++) {
+    if (creal(qs->state_vector[i]) == 0 && cimag(qs->state_vector[i]) == 0)
+      continue;
+
+    // Extract x (control value)
+    long long x = 0;
+    for (int j = 0; j < num_controls; j++) {
+      if (i & (1ULL << controls[j])) {
+        x |= (1ULL << j);
+      }
+    }
+
+    // Extract y (target value)
+    long long y = 0;
+    for (int j = 0; j < num_targets; j++) {
+      if (i & (1ULL << targets[j])) {
+        y |= (1ULL << j);
+      }
+    }
+
+    // Compute y_new = (y * a^x) % N
+    long long y_new = y;
+    if (y < N) {
+      long long multiplier = power_mod(a, x, N);
+      y_new = (y * multiplier) % N;
+    }
+
+    // Construct new index
+    size_t new_idx = i;
+    for (int j = 0; j < num_targets; j++) {
+      if (y_new & (1ULL << j)) {
+        new_idx |= (1ULL << targets[j]);
+      } else {
+        new_idx &= ~(1ULL << targets[j]);
+      }
+    }
+
+    new_vector[new_idx] += qs->state_vector[i];
+  }
+
+  memcpy(qs->state_vector, new_vector, qs->vector_size * sizeof(cplx));
+  free(new_vector);
+
+  return MACQ_SUCCESS;
+}
+
 // ============================================================================
 // Measurement
 // ============================================================================

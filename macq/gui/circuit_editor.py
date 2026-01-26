@@ -193,11 +193,47 @@ class CircuitEditorWidget(QWidget):
                     qs.swap(control, qubit)
                 
                 # 三量子比特门
-                elif gate_type == 'Toffoli' and control is not None:
-                    # 简化：使用qubit-2, qubit-1作为控制位
-                    if qubit >= 2:
+                elif gate_type == 'Toffoli':
+                    if 'control2' in gate:
+                        qs.toffoli(control, gate['control2'], qubit)
+                    elif qubit >= 2:
+                        # Fallback for old gate format
                         qs.toffoli(qubit-2, qubit-1, qubit)
                 
+                # v2.0 Gates
+                elif gate_type == 'MEASURE':
+                    qs.measure(qubit)
+                    
+                elif gate_type in ['QFT', 'QFT_INV']:
+                    params = gate.get('params', {})
+                    q_list = params.get('qubits', [qubit])
+                    is_inv = params.get('is_inverse', gate_type == 'QFT_INV')
+                    qs.qft(q_list, inverse=is_inv)
+                    
+                elif gate_type == 'MOD_EXP':
+                    params = gate.get('params', {})
+                    base = params.get('base', 2)
+                    mod = params.get('modulus', 1)
+                    ctrls = params.get('control_qubits', [])
+                    tgts = params.get('target_qubits', [])
+                    if ctrls and tgts:
+                        qs.mod_exp(base, mod, ctrls, tgts)
+                
+                elif gate_type in ['Rx', 'Ry', 'Rz']:
+                    angle = gate.get('params', {}).get('angle', 0.0)
+                    if isinstance(angle, str):
+                        # Handle basic math expressions like pi/2
+                        import math
+                        angle = angle.replace('π', 'math.pi').replace('pi', 'math.pi')
+                        try:
+                            angle = eval(angle, {"math": math, "np": np})
+                        except:
+                            angle = 0.0
+                    
+                    if gate_type == 'Rx': qs.rx(qubit, angle)
+                    elif gate_type == 'Ry': qs.ry(qubit, angle)
+                    elif gate_type == 'Rz': qs.rz(qubit, angle)
+
             except Exception as e:
                 print(f"Error applying gate {gate_type}: {e}")
         

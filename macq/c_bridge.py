@@ -146,6 +146,20 @@ _lib.qstate_apply_swap.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
 _lib.qstate_apply_toffoli.restype = ctypes.c_int
 _lib.qstate_apply_toffoli.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int]
 
+# New v2.0 gates
+_lib.qstate_apply_cp.restype = ctypes.c_int
+_lib.qstate_apply_cp.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_double]
+
+_lib.qstate_apply_qft.restype = ctypes.c_int
+_lib.qstate_apply_qft.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.c_bool]
+
+_lib.qstate_apply_mod_exp.restype = ctypes.c_int
+_lib.qstate_apply_mod_exp.argtypes = [
+    ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
+    ctypes.c_int, ctypes.POINTER(ctypes.c_int),
+    ctypes.c_int, ctypes.POINTER(ctypes.c_int)
+]
+
 # Measurement
 _lib.qstate_measure.restype = ctypes.c_int
 _lib.qstate_measure.argtypes = [ctypes.c_void_p, ctypes.c_int]
@@ -320,6 +334,28 @@ class QuantumState:
     def ccx(self, control1: int, control2: int, target: int) -> 'QuantumState':
         """Alias for toffoli()"""
         return self.toffoli(control1, control2, target)
+    
+    # New v2.0 methods
+    def cp(self, control: int, target: int, phi: float) -> 'QuantumState':
+        """Apply Controlled-Phase gate"""
+        _lib.qstate_apply_cp(self._ptr, control, target, phi)
+        return self
+        
+    def qft(self, qubits: List[int], inverse: bool = False) -> 'QuantumState':
+        """Apply Quantum Fourier Transform to a register of qubits"""
+        num_qubits = len(qubits)
+        q_array = (ctypes.c_int * num_qubits)(*qubits)
+        _lib.qstate_apply_qft(self._ptr, num_qubits, q_array, inverse)
+        return self
+        
+    def mod_exp(self, a: int, N: int, controls: List[int], targets: List[int]) -> 'QuantumState':
+        """Apply Modular Exponentiation: |x⟩|y⟩ → |x⟩|y · a^x mod N⟩"""
+        num_c = len(controls)
+        num_t = len(targets)
+        c_array = (ctypes.c_int * num_c)(*controls)
+        t_array = (ctypes.c_int * num_t)(*targets)
+        _lib.qstate_apply_mod_exp(self._ptr, a, N, num_c, c_array, num_t, t_array)
+        return self
     
     # Measurement
     def measure(self, qubit: int) -> int:
