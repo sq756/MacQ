@@ -179,28 +179,36 @@ class CircuitEditorWidget(QWidget):
     
     def _draw_qubit_lines(self, painter):
         """绘制量子比特线"""
-        pen = QPen(QColor("#CCCCCC"), 2)
+        pen = QPen(QColor("#4A90E2"), 2)
         painter.setPen(pen)
         
         # 字体
-        font = QFont("Arial", 12)
+        font = QFont("SF Pro Display", 13)
+        font.setBold(True)
         painter.setFont(font)
         
         for i in range(self.num_qubits):
             y = 50 + i * self.qubit_spacing
             
-            # 绘制标签
-            painter.setPen(QColor("#333333"))
-            painter.drawText(10, y + 5, f"q[{i}]")
+            # 绘制标签背景
+            painter.setBrush(QColor(74, 144, 226, 50))
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(5, y - 15, 50, 30, 6, 6)
             
-            # 绘制线
-            painter.setPen(pen)
+            # 绘制标签文字
+            painter.setPen(QColor("#FFFFFF"))
+            painter.drawText(10, y - 15, 40, 30, Qt.AlignCenter, f"q{i}")
+            
+            # 绘制线 - 更亮的颜色
+            painter.setPen(QPen(QColor("#667eea"), 3, Qt.DotLine))
             painter.drawLine(60, y, self.width() - 20, y)
     
     def _draw_gates(self, painter):
-        """绘制所有门"""
+        """绘制所有门 - Premium版本"""
         from .gate_palette import GatePaletteWidget
         colors = GatePaletteWidget.GATE_COLORS
+        
+        painter.setRenderHint(QPainter.Antialiasing, True)
         
         for gate in self.gates:
             gate_type = gate['type']
@@ -219,41 +227,67 @@ class CircuitEditorWidget(QWidget):
             if control is not None and gate_type in ['CNOT', 'CZ', 'SWAP']:
                 control_y = 50 + control * self.qubit_spacing
                 
-                # 绘制竖线连接控制位和目标位
-                painter.setPen(QPen(QColor("#333333"), 3))
+                # 绘制发光连接线
+                gradient = QLinearGradient(x, control_y, x, y)
+                gradient.setColorAt(0, QColor(74, 144, 226, 150))
+                gradient.setColorAt(1, QColor(155, 89, 182, 150))
+                
+                painter.setPen(QPen(gradient, 4))
                 painter.drawLine(x, control_y, x, y)
                 
-                # 绘制控制点（小圆圈）
-                painter.setBrush(QColor("#333333"))
-                painter.drawEllipse(x - 6, control_y - 6, 12, 12)
+                # 绘制控制点（发光圆圈）
+                painter.setBrush(QColor("#4A90E2"))
+                painter.setPen(QPen(QColor("#667eea"), 2))
+                painter.drawEllipse(x - 8, control_y - 8, 16, 16)
                 
                 # CNOT的目标点（⊕符号）
                 if gate_type == 'CNOT':
+                    # 外圈发光
                     painter.setBrush(Qt.NoBrush)
+                    painter.setPen(QPen(QColor("#667eea"), 4))
+                    painter.drawEllipse(x - 22, y - 22, 44, 44)
+                    
+                    # 内圈
                     painter.setPen(QPen(color, 3))
-                    painter.drawEllipse(x - 20, y - 20, 40, 40)
-                    painter.drawLine(x - 15, y, x + 15, y)
-                    painter.drawLine(x, y - 15, x, y + 15)
-                    continue  # CNOT不绘制方框
+                    painter.drawEllipse(x - 18, y - 18, 36, 36)
+                    
+                    # ⊕符号
+                    painter.drawLine(x - 12, y, x + 12, y)
+                    painter.drawLine(x, y - 12, x, y + 12)
+                    continue
                 
                 elif gate_type == 'SWAP':
-                    # SWAP用X符号
-                    painter.setPen(QPen(color, 3))
-                    painter.drawLine(x - 10, control_y - 10, x + 10, control_y + 10)
-                    painter.drawLine(x - 10, control_y + 10, x + 10, control_y - 10)
-                    painter.drawLine(x - 10, y - 10, x + 10, y + 10)
-                    painter.drawLine(x - 10, y + 10, x + 10, y - 10)
+                    # SWAP用X符号 - 发光效果
+                    painter.setPen(QPen(color, 4))
+                    painter.drawLine(x - 12, control_y - 12, x + 12, control_y + 12)
+                    painter.drawLine(x - 12, control_y + 12, x + 12, control_y - 12)
+                    painter.drawLine(x - 12, y - 12, x + 12, y + 12)
+                    painter.drawLine(x - 12, y + 12, x + 12, y - 12)
                     continue
             
-            # 绘制普通门框
-            painter.setBrush(color)
-            painter.setPen(QPen(color.darker(120), 2))
-            painter.drawRect(x - self.gate_width//2, y - 20, 
-                           self.gate_width, 40)
+            # 绘制普通门框 - 带渐变和发光
+            # 外层发光
+            glow_color = QColor(color)
+            glow_color.setAlpha(60)
+            painter.setBrush(glow_color)
+            painter.setPen(Qt.NoPen)
+            painter.drawRoundedRect(x - self.gate_width//2 - 3, y - 23,
+                                  self.gate_width + 6, 46, 14, 14)
             
-            # 绘制门标签
-            painter.setPen(QColor("white"))
-            font = QFont("Arial", 11, QFont.Bold)
+            # 主门框 - 渐变
+            gradient = QLinearGradient(x, y - 20, x, y + 20)
+            bright_color = QColor(color).lighter(120)
+            gradient.setColorAt(0, bright_color)
+            gradient.setColorAt(1, color)
+            
+            painter.setBrush(gradient)
+            painter.setPen(QPen(color.darker(130), 2))
+            painter.drawRoundedRect(x - self.gate_width//2, y - 20,
+                                  self.gate_width, 40, 10, 10)
+            
+            # 绘制门标签 - 白色加粗
+            painter.setPen(QColor("#FFFFFF"))
+            font = QFont("SF Pro Display", 12, QFont.Bold)
             painter.setFont(font)
             painter.drawText(x - self.gate_width//2, y - 20,
                            self.gate_width, 40,

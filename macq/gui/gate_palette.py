@@ -92,6 +92,28 @@ class GatePaletteWidget(QWidget):
             group = self._create_gate_group(category, gates)
             layout.addWidget(group)
         
+        # 底部间距
+        layout.addStretch()
+        
+        # 说明文本
+        info_label = QLabel("💡 拖拽门到电路")
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("""
+            QLabel {
+                color: #999;
+                font-size: 11px;
+                padding: 8px;
+                background: rgba(74, 144, 226, 0.1);
+                border-radius: 6px;
+            }
+        """)
+        layout.addWidget(info_label)
+        
+        # 为每个类别创建分组
+        for category, gates in self.GATE_CATEGORIES.items():
+            group = self._create_gate_group(category, gates)
+            layout.addWidget(group)
+        
         layout.addStretch()
         
         # 说明文本

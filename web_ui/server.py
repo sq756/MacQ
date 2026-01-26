@@ -112,6 +112,6 @@ def health():
 
 if __name__ == '__main__':
     print("🚀 启动MacQ Web服务器...")
-    print("📡 访问: http://localhost:5000")
+    print("📡 访问: http://localhost:8080")
     print("⚛️  3D量子可视化已就绪!")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=True)
