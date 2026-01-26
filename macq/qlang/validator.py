@@ -6,7 +6,8 @@ Semantic analysis and conflict detection for quantum circuits
 from typing import List, Set, Optional
 from .parser import (
     Program, TimeStep, GateOperation,
-    SingleQubitGate, TwoQubitGate, ThreeQubitGate
+    SingleQubitGate, TwoQubitGate, ThreeQubitGate,
+    MeasurementNode, ConditionalNode, ModularGate
 )
 
 
@@ -88,6 +89,12 @@ class QLangValidator:
             self._validate_two_qubit_gate(operation)
         elif isinstance(operation, ThreeQubitGate):
             self._validate_three_qubit_gate(operation)
+        elif isinstance(operation, ModularGate):
+            self._validate_modular_gate(operation)
+        elif isinstance(operation, MeasurementNode):
+            self._validate_measurement(operation)
+        elif isinstance(operation, ConditionalNode):
+            self._validate_conditional(operation)
     
     def _validate_single_qubit_gate(self, gate: SingleQubitGate):
         """Validate single-qubit gate"""
@@ -157,6 +164,43 @@ class QLangValidator:
                 f"(got {gate.control1}, {gate.control2}, {gate.target})"
             )
     
+    def _validate_modular_gate(self, gate: ModularGate):
+        """Validate modular arithmetic gate"""
+        # Check all control qubits
+        for qubit in gate.control_qubits:
+            if qubit < 0 or qubit >= self.num_qubits:
+                raise ValidationError(
+                    f"Line {gate.line}: Control qubit {qubit} out of range [0, {self.num_qubits-1}]"
+                )
+        
+        # Check all target qubits
+        for qubit in gate.target_qubits:
+            if qubit < 0 or qubit >= self.num_qubits:
+                raise ValidationError(
+                    f"Line {gate.line}: Target qubit {qubit} out of range [0, {self.num_qubits-1}]"
+                )
+        
+        # Check no overlap between control and target
+        control_set = set(gate.control_qubits)
+        target_set = set(gate.target_qubits)
+        overlap = control_set & target_set
+        if overlap:
+            raise ValidationError(
+                f"Line {gate.line}: Qubit(s) {overlap} appear in both control and target registers"
+            )
+    
+    def _validate_measurement(self, node: MeasurementNode):
+        """Validate measurement operation"""
+        if node.qubit < 0 or node.qubit >= self.num_qubits:
+            raise ValidationError(
+                f"Line {node.line}: Qubit {node.qubit} out of range [0, {self.num_qubits-1}]"
+            )
+    
+    def _validate_conditional(self, node: ConditionalNode):
+        """Validate conditional operation"""
+        # Recursively validate the inner operation
+        self._validate_operation(node.operation)
+    
     def _get_involved_qubits(self, operation: GateOperation) -> Set[int]:
         """Get all qubits involved in an operation"""
         if isinstance(operation, SingleQubitGate):
@@ -165,6 +209,12 @@ class QLangValidator:
             return {operation.control, operation.target}
         elif isinstance(operation, ThreeQubitGate):
             return {operation.control1, operation.control2, operation.target}
+        elif isinstance(operation, ModularGate):
+            return set(operation.control_qubits) | set(operation.target_qubits)
+        elif isinstance(operation, MeasurementNode):
+            return {operation.qubit}
+        elif isinstance(operation, ConditionalNode):
+            return self._get_involved_qubits(operation.operation)
         return set()
 
 
