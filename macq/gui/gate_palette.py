@@ -71,32 +71,66 @@ class GatePaletteWidget(QWidget):
         
     def _init_ui(self):
         """初始化UI"""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(12)
+        # 主布局
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         
-        # 标题 - 更现代
+        # 标题（固定在顶部）
         title = QLabel("⚛️ Quantum Gates")
         title.setStyleSheet("""
             QLabel {
                 font-size: 18px;
                 font-weight: bold;
-                padding: 8px;
+                padding: 15px;
                 color: #FFFFFF;
+                background: rgba(30, 34, 55, 0.5);
             }
         """)
-        layout.addWidget(title)
+        main_layout.addWidget(title)
         
-        # 为每个类别创建分组
+        # 可滚动区域
+        from PySide6.QtWidgets import QScrollArea
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                background: rgba(255, 255, 255, 0.05);
+                width: 8px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(74, 144, 226, 0.5);
+                border-radius: 4px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: rgba(74, 144, 226, 0.7);
+            }
+        """)
+        
+        # 滚动内容容器
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(15, 10, 15, 10)
+        scroll_layout.setSpacing(12)
+        
+        # 为每个类别创建分组（添加到滚动区域）
         for category, gates in self.GATE_CATEGORIES.items():
             group = self._create_gate_group(category, gates)
-            layout.addWidget(group)
+            scroll_layout.addWidget(group)
         
         # 底部间距
-        layout.addStretch()
+        scroll_layout.addStretch()
         
         # 说明文本
-        info_label = QLabel("💡 拖拽门到电路")
+        info_label = QLabel("💡 拖拽门到电路\n或右键电路添加")
         info_label.setWordWrap(True)
         info_label.setStyleSheet("""
             QLabel {
@@ -107,28 +141,11 @@ class GatePaletteWidget(QWidget):
                 border-radius: 6px;
             }
         """)
-        layout.addWidget(info_label)
+        scroll_layout.addWidget(info_label)
         
-        # 为每个类别创建分组
-        for category, gates in self.GATE_CATEGORIES.items():
-            group = self._create_gate_group(category, gates)
-            layout.addWidget(group)
-        
-        layout.addStretch()
-        
-        # 说明文本
-        info_label = QLabel("💡 拖拽门到电路编辑器")
-        info_label.setWordWrap(True)
-        info_label.setStyleSheet("""
-            QLabel {
-                color: #666;
-                font-size: 11px;
-                padding: 10px;
-                background-color: #F0F0F0;
-                border-radius: 4px;
-            }
-        """)
-        layout.addWidget(info_label)
+        # 设置滚动区域
+        scroll.setWidget(scroll_content)
+        main_layout.addWidget(scroll)
         
     def _create_gate_group(self, category, gates):
         """创建门分组"""

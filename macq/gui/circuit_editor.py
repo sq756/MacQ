@@ -3,9 +3,9 @@ MacQ GUI - Circuit Editor Widget
 Visual quantum circuit editor with drag-and-drop support
 """
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMenu
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPainter, QPen, QColor, QFont, QLinearGradient
+from PySide6.QtGui import QPainter, QPen, QColor, QFont, QLinearGradient, QAction
 
 from ..c_bridge import QuantumState
 from .styles import CIRCUIT_EDITOR_STYLE
@@ -16,6 +16,14 @@ class CircuitEditorWidget(QWidget):
     
     circuit_changed = Signal()
     gate_added = Signal(str, int)
+    
+    # 可用的门类型
+    AVAILABLE_GATES = {
+        '基础门': ['H', 'X', 'Y', 'Z', 'I'],
+        '相位门': ['S', 'T'],
+        '双比特门': ['CNOT', 'CZ', 'SWAP'],
+        '多比特门': ['Toffoli']
+    }
     
     def __init__(self):
         super().__init__()
@@ -30,6 +38,17 @@ class CircuitEditorWidget(QWidget):
         self.qubit_spacing = 80
         self.gate_width = 50
         self.time_step_width = 70
+        
+        # Enable context menu
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
+    
+    def _show_context_menu(self, pos):
+        """显示右键菜单选择门"""
+        # 计算点击的量子比特
+        qubit = min(int((pos.y() - 20) / self.qubit_spacing), self.num_qubits - 1)
+        if qubit < 0:
+            return
         
         # Background
         self.setStyleSheet("background-color: white;")
