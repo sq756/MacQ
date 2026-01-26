@@ -8,6 +8,11 @@ from PySide6.QtCore import Qt
 
 import matplotlib
 matplotlib.use('Qt5Agg')
+# 配置中文字体
+import matplotlib.pyplot as plt
+plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'DejaVu Sans']  # macOS中文字体
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 import numpy as np
