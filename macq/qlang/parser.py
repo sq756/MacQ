@@ -301,8 +301,12 @@ class QLangParser:
         return TimeStep(operations, line, col)
     
     def _parse_operation(self) -> GateOperation:
-        """Parse a single gate operation or measurement"""
+        """Parse a single gate operation, measurement, or conditional"""
         current = self._current_token()
+        
+        # Check for conditional (if-then)
+        if current.type == TokenType.IF:
+            return self._parse_conditional()
         
         # Check for measurement
         if current.type == TokenType.MEASURE:
@@ -357,6 +361,88 @@ class QLangParser:
             )
         
         return MeasurementNode(qubit, cbit_name, line, col)
+    
+    def _parse_conditional(self) -> ConditionalNode:
+        """Parse conditional: if condition then operation"""
+        if_token = self._advance()  # consume 'if'
+        line, col = if_token.line, if_token.column
+        
+        # Parse condition
+        condition = self._parse_condition()
+        
+        # Expect 'then'
+        self._expect(TokenType.THEN)
+        
+        # Parse operation (recursively - can be any operation except another conditional)
+        # Save current position to check if operation is another if
+        saved_pos = self.pos
+        current = self._current_token()
+        
+        if current.type == TokenType.IF:
+            raise SyntaxError(
+                f"Line {current.line}:{current.column}: "
+                "Nested if-statements are not supported"
+            )
+        
+        # Parse the operation
+        operation = self._parse_operation()
+        
+        return ConditionalNode(condition, operation, line, col)
+    
+    def _parse_condition(self) -> Condition:
+        """Parse condition expression"""
+        # Parse primary condition
+        left = self._parse_primary_condition()
+        
+        # Check for logical operators
+        while True:
+            current = self._current_token()
+            
+            if current.type == TokenType.AND:
+                self._advance()
+                right = self._parse_primary_condition()
+                left = AndCondition(left, right, current.line, current.column)
+            elif current.type == TokenType.OR:
+                self._advance()
+                right = self._parse_primary_condition()
+                left = OrCondition(left, right, current.line, current.column)
+            else:
+                break
+        
+        return left
+    
+    def _parse_primary_condition(self) -> Condition:
+        """Parse a primary condition (bit check)"""
+        # Expect identifier (classical bit name)
+        bit_token = self._current_token()
+        
+        if bit_token.type != TokenType.IDENTIFIER and bit_token.type != TokenType.GATE_NAME:
+            raise SyntaxError(
+                f"Line {bit_token.line}:{bit_token.column}: "
+                f"Expected classical bit name, got {bit_token.type.name}"
+            )
+        
+        bit_name = bit_token.value
+        self._advance()
+        
+        # Check for '==' comparison
+        if self._current_token().type == TokenType.EQUALS:
+            self._advance()
+            
+            # Expect 0 or 1
+            value_token = self._expect(TokenType.NUMBER)
+            value = int(value_token.value)
+            
+            if value not in [0, 1]:
+                raise ValueError(
+                    f"Line {value_token.line}:{value_token.column}: "
+                    f"Classical bit value must be 0 or 1, got {value}"
+                )
+            
+            return BitCondition(bit_name, value, bit_token.line, bit_token.column)
+        else:
+            # Simple condition: "if c0" means "if c0 == 1"
+            return BitCondition(bit_name, None, bit_token.line, bit_token.column)
     
     def _parse_single_qubit_gate(self, gate_name: str, parameter: Optional[Parameter],
                                    line: int, col: int) -> SingleQubitGate:
