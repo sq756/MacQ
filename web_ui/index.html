@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MacQ - 3D Quantum Circuit Simulator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1e3f 100%);
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #app {
+            display: grid;
+            grid-template-columns: 250px 1fr 400px;
+            grid-template-rows: 60px 1fr 40px;
+            height: 100vh;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        /* Header */
+        #header {
+            grid-column: 1 / -1;
+            background: rgba(20, 24, 45, 0.8);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #header h1 {
+            font-size: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #5B86E5 0%, #36D1DC 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(91, 134, 229, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(91, 134, 229, 0.6);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #E24A4A 0%, #C03A3A 100%);
+            color: white;
+        }
+
+        /* Gate Palette */
+        #gate-palette {
+            background: rgba(20, 24, 45, 0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            overflow-y: auto;
+        }
+
+        .gate-category {
+            margin-bottom: 20px;
+        }
+
+        .gate-category h3 {
+            font-size: 14px;
+            color: #B0B0B0;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .gate-btn {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 8px;
+            border: none;
+            border-radius: 10px;
+            cursor: grab;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s;
+        }
+
+        .gate-btn:active {
+            cursor: grabbing;
+        }
+
+        .gate-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        /* 3D Canvas */
+        #canvas-container {
+            position: relative;
+            background: rgba(15, 19, 35, 0.4);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        #three-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        #circuit-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(20, 24, 45, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* Visualization Panel */
+        #viz-panel {
+            background: rgba(20, 24, 45, 0.5);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            background: rgba(40, 44, 65, 0.4);
+            border: none;
+            border-radius: 8px;
+            color: #A0A0A0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            background: rgba(74, 144, 226, 0.3);
+            color: white;
+            border-bottom: 3px solid #4A90E2;
+        }
+
+        #prob-chart {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+        }
+
+        /* Status Bar */
+        #status-bar {
+            grid-column: 1 / -1;
+            background: rgba(15, 19, 35, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 13px;
+            color: #A0A0A0;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(74, 144, 226, 0.3);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(74, 144, 226, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <div id="header">
+            <h1>⚛️ MacQ - Quantum 3D Simulator</h1>
+            <div class="controls">
+                <label style="color: #B0B0B0;">Qubits:</label>
+                <input type="number" id="qubit-count" value="3" min="1" max="10" 
+                       style="width: 60px; padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); 
+                              background: rgba(40,44,65,0.6); color: white;">
+                <button class="btn btn-primary" onclick="runCircuit()">▶ Run Circuit</button>
+                <button class="btn btn-danger" onclick="clearCircuit()">🗑 Clear</button>
+            </div>
+        </div>
+
+        <!-- Gate Palette -->
+        <div id="gate-palette">
+            <div class="gate-category">
+                <h3>基础门</h3>
+                <button class="gate-btn" style="background: linear-gradient(135deg, #667eea, #764ba2);" 
+                        draggable="true" data-gate="H">H</button>
+                <button class="gate-btn" style="background: linear-gradient(135deg, #f093fb, #f5576c);" 
+                        draggable="true" data-gate="X">X</button>
+                <button class="gate-btn" style="background: linear-gradient(135deg, #fa709a, #fee140);" 
+                        draggable="true" data-gate="Y">Y</button>
+                <button class="gate-btn" style="background: linear-gradient(135deg, #30cfd0, #330867);" 
+                        draggable="true" data-gate="Z">Z</button>
+            </div>
+            
+            <div class="gate-category">
+                <h3>相位门</h3>
+                <button class="gate-btn" style="background: linear-gradient(135deg, #a044ff, #6a3093);" 
+                        draggable="true" data-gate="S">S</button>
+                <button class="gate-btn" style="background: linear-gradient(135deg, #ff6a88, #ff4a6a);" 
+                        draggable="true" data-gate="T">T</button>
+            </div>
+            
+            <div class="gate-category">
+                <h3>双比特门</h3>
+                <button class="gate-btn" style="background: linear-gradient(135deg, #8e2de2, #4a00e0);" 
+                        draggable="true" data-gate="CNOT">CNOT</button>
+                <button class="gate-btn" style="background: linear-gradient(135deg, #06beb6, #48b1bf);" 
+                        draggable="true" data-gate="CZ">CZ</button>
+                <button class="gate-btn" style="background: linear-gradient(135deg, #ffa751, #ffe259);" 
+                        draggable="true" data-gate="SWAP">SWAP</button>
+            </div>
+        </div>
+
+        <!-- 3D Canvas -->
+        <div id="canvas-container">
+            <canvas id="three-canvas"></canvas>
+            <div id="circuit-overlay">
+                <h4 style="margin-bottom: 10px; color: #B0B0B0;">量子电路</h4>
+                <div id="circuit-display"></div>
+            </div>
+        </div>
+
+        <!-- Visualization Panel -->
+        <div id="viz-panel">
+            <div class="tab-buttons">
+                <button class="tab-btn active">📊 概率</button>
+                <button class="tab-btn">🔢 态向量</button>
+            </div>
+            <canvas id="prob-chart"></canvas>
+        </div>
+
+        <!-- Status Bar -->
+        <div id="status-bar">
+            <span id="status-text">就绪</span>
+            <span id="info-text">MacQ v1.0.0 WebGL</span>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
