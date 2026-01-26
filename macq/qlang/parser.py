@@ -24,6 +24,11 @@ class Parameter(ASTNode):
     """Parameter for parametric gates (e.g., π/4, 0.5)"""
     expression: str
     
+    def __init__(self, expression: str, line: int = 0, column: int = 0):
+        self.expression = expression
+        self.line = line
+        self.column = column
+    
     def evaluate(self) -> float:
         """Evaluate parameter expression"""
         import math
