@@ -107,6 +107,49 @@ class QLangCompiler:
             'control2': gate.control2,  # Store second control
             'params': {}
         }
+    
+    def _compile_measurement(self, node: MeasurementNode, 
+                           time_step: int) -> Dict[str, Any]:
+        """Compile measurement operation"""
+        return {
+            'type': 'MEASURE',
+            'qubit': node.qubit,
+            'time_step': time_step,
+            'control': None,
+            'params': {
+                'classical_bit': node.classical_bit
+            }
+        }
+    
+    def _compile_modular_gate(self, gate: ModularGate, 
+                             time_step: int) -> Dict[str, Any]:
+        """Compile modular arithmetic gate"""
+        return {
+            'type': gate.gate_name,
+            'qubit': gate.target_qubits[0] if gate.target_qubits else 0,
+            'time_step': time_step,
+            'control': gate.control_qubits[0] if gate.control_qubits else None,
+            'params': {
+                'base': gate.base,
+                'modulus': gate.modulus,
+                'control_qubits': gate.control_qubits,
+                'target_qubits': gate.target_qubits
+            }
+        }
+    
+    def _compile_qft(self, node: QFTNode, 
+                    time_step: int) -> Dict[str, Any]:
+        """Compile QFT operation"""
+        return {
+            'type': 'QFT_INV' if node.is_inverse else 'QFT',
+            'qubit': node.qubits[0] if node.qubits else 0,
+            'time_step': time_step,
+            'control': None,
+            'params': {
+                'qubits': node.qubits,
+                'is_inverse': node.is_inverse
+            }
+        }
 
 
 class QLangDecompiler:
