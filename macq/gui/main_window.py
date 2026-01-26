@@ -196,16 +196,17 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         
         # 清空按钮 - 红色渐变
-        clear_btn.setStyleSheet(CLEAR_BUTTON_STYLE)
-        clear_btn.clicked.connect(self._clear_circuit)
+        self.clear_btn = QPushButton("🗑 Clear")
+        self.clear_btn.setStyleSheet(CLEAR_BUTTON_STYLE)
+        self.clear_btn.clicked.connect(self._clear_circuit)
         
         shadow2 = QGraphicsDropShadowEffect()
         shadow2.setBlurRadius(12)
         shadow2.setColor(QColor(226, 74, 74, 80))
         shadow2.setOffset(0, 3)
-        clear_btn.setGraphicsEffect(shadow2)
+        self.clear_btn.setGraphicsEffect(shadow2)
         
-        toolbar.addWidget(clear_btn)
+        toolbar.addWidget(self.clear_btn)
         
     def _create_statusbar(self):
         """创建状态栏"""
