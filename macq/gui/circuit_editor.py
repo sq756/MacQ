@@ -50,9 +50,45 @@ class CircuitEditorWidget(QWidget):
         if qubit < 0:
             return
         
-        # Background
-        self.setStyleSheet("background-color: white;")
+        # 创建菜单
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background: rgba(30, 34, 55, 0.95);
+                border: 1px solid rgba(74, 144, 226, 0.3);
+                border-radius: 8px;
+                padding: 8px;
+            }
+            QMenu::item {
+                padding: 8px 30px;
+                border-radius: 4px;
+                color: #E8E8E8;
+            }
+            QMenu::item:selected {
+                background: rgba(74, 144, 226, 0.4);
+            }
+            QMenu::separator {
+                height: 1px;
+                background: rgba(255, 255, 255, 0.1);
+                margin: 4px 0;
+            }
+        """)
         
+        # 添加标题
+        title = menu.addAction(f"⚛️ 添加门到 q{qubit}")
+        title.setEnabled(False)
+        menu.addSeparator()
+        
+        # 分类添加门
+        for category, gates in self.AVAILABLE_GATES.items():
+            category_menu = menu.addMenu(category)
+            for gate_name in gates:
+                action = category_menu.addAction(gate_name)
+                action.triggered.connect(lambda checked, g=gate_name, q=qubit: self.add_gate(g, q))
+        
+        # 显示菜单
+        menu.exec(self.mapToGlobal(pos))
+    
     def set_qubit_count(self, count):
         """设置量子比特数量"""
         self.num_qubits = count

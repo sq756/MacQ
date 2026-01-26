@@ -74,59 +74,111 @@ class VisualizationWidget(QWidget):
 
 
 class ProbabilityChart(FigureCanvasQTAgg):
-    """概率分布图"""
+    """概率分布图 - Premium版本"""
     
     def __init__(self):
-        fig = Figure(figsize=(5, 4), dpi=100)
+        fig = Figure(figsize=(5, 4), dpi=100, facecolor='#FAFAFA')
         self.axes = fig.add_subplot(111)
         super().__init__(fig)
         
-        self.axes.set_title('基态概率分布')
-        self.axes.set_xlabel('基态')
-        self.axes.set_ylabel('概率')
+        # 初始样式
+        self.axes.set_facecolor('#FFFFFF')
+        self.axes.set_title('量子态概率分布', fontsize=14, fontweight='bold', color='#2C3E50')
+        self.axes.set_xlabel('量子态', fontsize=11, color='#555')
+        self.axes.set_ylabel('概率', fontsize=11, color='#555')
         self.axes.set_ylim([0, 1])
-        self.axes.grid(True, alpha=0.3)
+        self.axes.grid(True, alpha=0.2, linestyle='--')
+        
+        # 美化边框
+        self.axes.spines['top'].set_visible(False)
+        self.axes.spines['right'].set_visible(False)
         
     def update_probabilities(self, state):
-        """更新概率显示"""
+        """更新概率显示 - 智能优化版本"""
         probs = state.probabilities()
         num_qubits = state.num_qubits
         
-        # 生成标签
-        if num_qubits <= 4:
-            # 少量量子比特：显示所有基态
-            labels = [f"|{i:0{num_qubits}b}⟩" for i in range(len(probs))]
-        else:
-            # 多量子比特：只显示索引
-            labels = [str(i) for i in range(len(probs))]
-        
         self.axes.clear()
         
+        # 智能显示：只显示概率>阈值的基态
+        threshold = 0.001  # 0.1%
+        significant_indices = [i for i, p in enumerate(probs) if p > threshold]
+        
+        # 如果显著的基态少于10个，显示全部
+        if len(significant_indices) == 0:
+            significant_indices = list(range(min(10, len(probs))))
+        elif len(significant_indices) > 20:
+            # 太多的话，只显示Top 20
+            sorted_indices = sorted(range(len(probs)), key=lambda i: probs[i], reverse=True)
+            significant_indices = sorted(sorted_indices[:20])
+        
+        # 提取显著概率
+        sig_probs = [probs[i] for i in significant_indices]
+        labels = [f"|{i:0{num_qubits}b}⟩" for i in significant_indices]
+        
+        # 创建渐变颜色
+        colors = []
+        for p in sig_probs:
+            # 根据概率大小设置颜色：高概率=亮蓝色，低概率=暗蓝色
+            intensity = 0.3 + 0.7 * (p / max(sig_probs)) if max(sig_probs) > 0 else 0.5
+            colors.append((0.29 * intensity, 0.56 * intensity, 0.89 * intensity))
+        
         # 绘制柱状图
-        bars = self.axes.bar(range(len(probs)), probs, color='#4A90E2', alpha=0.7)
+        bars = self.axes.bar(range(len(sig_probs)), sig_probs, 
+                            color=colors, 
+                            edgecolor='white', 
+                            linewidth=1.5,
+                            alpha=0.9)
         
-        # 高亮非零概率
-        for i, (bar, prob) in enumerate(zip(bars, probs)):
-            if prob > 0.01:  # 超过1%
-                bar.set_color('#E24A4A')
-                bar.set_alpha(0.9)
+        # 高亮最高概率
+        if sig_probs:
+            max_idx = sig_probs.index(max(sig_probs))
+            bars[max_idx].set_color('#FF6B9D')
+            bars[max_idx].set_edgecolor('#FF1744')
+            bars[max_idx].set_linewidth(2.5)
         
-        self.axes.set_title(f'{num_qubits}量子比特态概率分布')
-        self.axes.set_xlabel('基态')
-        self.axes.set_ylabel('概率')
-        self.axes.set_ylim([0, 1.1])
+        # 设置标题和标签
+        self.axes.set_title(
+            f'{num_qubits}量子比特态概率分布',
+            fontsize=14,
+            fontweight='bold',
+            color='#2C3E50',
+            pad=15
+        )
         
-        # 设置x轴标签
-        if num_qubits <= 4:
-            self.axes.set_xticks(range(len(probs)))
-            self.axes.set_xticklabels(labels, rotation=45, ha='right')
-        else:
-            # 太多标签时，只显示部分
-            step = max(1, len(probs) // 10)
-            self.axes.set_xticks(range(0, len(probs), step))
-            self.axes.set_xticklabels([labels[i] for i in range(0, len(probs), step)])
+        self.axes.set_xlabel('量子态', fontsize=11, color='#555', fontweight='600')
+        self.axes.set_ylabel('概率', fontsize=11, color='#555', fontweight='600')
+        self.axes.set_ylim([0, min(1.1, max(sig_probs) * 1.2) if sig_probs else 1])
         
-        self.axes.grid(True, alpha=0.3)
+        # 设置x轴
+        self.axes.set_xticks(range(len(sig_probs)))
+        self.axes.set_xticklabels(labels, rotation=45, ha='right', fontsize=9)
+        
+        # 美化网格
+        self.axes.grid(True, axis='y', alpha=0.2, linestyle='--', linewidth=0.8)
+        self.axes.set_axisbelow(True)
+        
+        # 移除顶部和右侧边框
+        self.axes.spines['top'].set_visible(False)
+        self.axes.spines['right'].set_visible(False)
+        self.axes.spines['left'].set_color('#CCCCCC')
+        self.axes.spines['bottom'].set_color('#CCCCCC')
+        
+        # 在柱子上显示概率值（只显示>5%的）
+        for i, (bar, prob) in enumerate(zip(bars, sig_probs)):
+            if prob > 0.05:  # 只标注大于5%的
+                height = bar.get_height()
+                self.axes.text(
+                    bar.get_x() + bar.get_width()/2., 
+                    height + 0.02,
+                    f'{prob:.1%}',
+                    ha='center', 
+                    va='bottom',
+                    fontsize=9,
+                    fontweight='bold',
+                    color='#FF6B9D' if i == max_idx else '#4A90E2'
+                )
+        
         self.figure.tight_layout()
         self.draw()
     
