@@ -22,6 +22,10 @@ class TokenType(Enum):
     DASH = auto()           # -
     LPAREN = auto()         # (
     RPAREN = auto()         # )
+    ARROW = auto()          # ->
+    
+    # Keywords
+    MEASURE = auto()        # measure
     
     # Special
     COMMENT = auto()        # # ...
@@ -50,9 +54,11 @@ class QLangTokenizer:
     # Token patterns (order matters for matching)
     TOKEN_PATTERNS = [
         (TokenType.COMMENT, r'#[^\n]*'),
+        (TokenType.MEASURE, r'\bmeasure\b'),  # Keyword - must be before GATE_NAME
         (TokenType.GATE_NAME, r'[A-Z][A-Za-z†]*'),  # Must start with uppercase
         (TokenType.NUMBER, r'\d+'),
         (TokenType.PARAMETER, r'\([^)]+\)'),
+        (TokenType.ARROW, r'->'),  # Must be before DASH
         (TokenType.SEMICOLON, r';'),
         (TokenType.COMMA, r','),
         (TokenType.DASH, r'-'),

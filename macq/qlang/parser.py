@@ -42,6 +42,22 @@ class Parameter(ASTNode):
 
 
 @dataclass
+class MeasurementNode(ASTNode):
+    """Measurement operation: measure qubit -> classical_bit"""
+    qubit: int
+    classical_bit: str  # Name of classical bit (e.g., "c0", "c1")
+    
+    def __init__(self, qubit: int, classical_bit: str, line: int = 0, column: int = 0):
+        self.qubit = qubit
+        self.classical_bit = classical_bit
+        self.line = line
+        self.column = column
+    
+    def __repr__(self):
+        return f"measure {self.qubit} -> {self.classical_bit}"
+
+
+@dataclass
 class SingleQubitGate(ASTNode):
     """Single-qubit gate operation"""
     gate_name: str
@@ -101,8 +117,8 @@ class ThreeQubitGate(ASTNode):
         return f"{self.gate_name} {self.control1}-{self.control2}-{self.target}"
 
 
-# Type alias for gate operations
-GateOperation = Union[SingleQubitGate, TwoQubitGate, ThreeQubitGate]
+# Type alias for gate operations (including measurements)
+GateOperation = Union[SingleQubitGate, TwoQubitGate, ThreeQubitGate, MeasurementNode]
 
 
 @dataclass
@@ -211,7 +227,14 @@ class QLangParser:
         return TimeStep(operations, line, col)
     
     def _parse_operation(self) -> GateOperation:
-        """Parse a single gate operation"""
+        """Parse a single gate operation or measurement"""
+        current = self._current_token()
+        
+        # Check for measurement
+        if current.type == TokenType.MEASURE:
+            return self._parse_measurement()
+        
+        # Otherwise parse gate
         gate_token = self._expect(TokenType.GATE_NAME)
         gate_name = gate_token.value
         line, col = gate_token.line, gate_token.column
@@ -231,6 +254,34 @@ class QLangParser:
             return self._parse_two_qubit_gate(gate_name, line, col)
         else:
             return self._parse_single_qubit_gate(gate_name, parameter, line, col)
+    
+    def _parse_measurement(self) -> MeasurementNode:
+        """Parse measurement: measure qubit -> classical_bit"""
+        measure_token = self._advance()  # consume 'measure'
+        line, col = measure_token.line, measure_token.column
+        
+        # Parse qubit number
+        qubit_token = self._expect(TokenType.NUMBER)
+        qubit = int(qubit_token.value)
+        
+        # Expect arrow
+        self._expect(TokenType.ARROW)
+        
+        # Parse classical bit name (should be like "c0", "c1", etc.)
+        # For now, we'll accept GATE_NAME token (lowercase letters)
+        cbit_token = self._current_token()
+        if cbit_token.type == TokenType.GATE_NAME:
+            # Accept it even though it's uppercase - user might use C0 style
+            cbit_name = cbit_token.value
+            self._advance()
+        else:
+            # Try to parse as a simple identifier (fallback)
+            raise SyntaxError(
+                f"Line {cbit_token.line}:{cbit_token.column}: "
+                f"Expected classical bit name after '->', got {cbit_token.type.name}"
+            )
+        
+        return MeasurementNode(qubit, cbit_name, line, col)
     
     def _parse_single_qubit_gate(self, gate_name: str, parameter: Optional[Parameter],
                                    line: int, col: int) -> SingleQubitGate:
