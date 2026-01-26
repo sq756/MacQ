@@ -132,6 +132,32 @@ class ConditionalNode(ASTNode):
 
 
 @dataclass
+class ModularGate(ASTNode):
+    """Modular arithmetic gate: MOD_EXP(a, N) control-target"""
+    gate_name: str  # MOD_EXP, MOD_ADD, MOD_MUL
+    base: int  # Base for exponentiation (a in a^x mod N)
+    modulus: int  # Modulus N
+    control_qubits: List[int]  # Control register
+    target_qubits: List[int]  # Target register
+    
+    def __init__(self, gate_name: str, base: int, modulus: int,
+                 control_qubits: List[int], target_qubits: List[int],
+                 line: int = 0, column: int = 0):
+        self.gate_name = gate_name
+        self.base = base
+        self.modulus = modulus
+        self.control_qubits = control_qubits
+        self.target_qubits = target_qubits
+        self.line = line
+        self.column = column
+    
+    def __repr__(self):
+        ctrl = ','.join(map(str, self.control_qubits))
+        tgt = ','.join(map(str, self.target_qubits))
+        return f"{self.gate_name}({self.base},{self.modulus}) {ctrl}-{tgt}"
+
+
+@dataclass
 class SingleQubitGate(ASTNode):
     """Single-qubit gate operation"""
     gate_name: str
@@ -191,8 +217,8 @@ class ThreeQubitGate(ASTNode):
         return f"{self.gate_name} {self.control1}-{self.control2}-{self.target}"
 
 
-# Type alias for gate operations (including measurements and conditionals)
-GateOperation = Union[SingleQubitGate, TwoQubitGate, ThreeQubitGate, MeasurementNode, ConditionalNode]
+# Type alias for gate operations (including measurements, conditionals, and modular gates)
+GateOperation = Union[SingleQubitGate, TwoQubitGate, ThreeQubitGate, MeasurementNode, ConditionalNode, ModularGate]
 
 
 @dataclass
@@ -238,6 +264,9 @@ class QLangParser:
     # Multi-qubit gates
     TWO_QUBIT_GATES = {'CNOT', 'CZ', 'SWAP', 'CX'}
     THREE_QUBIT_GATES = {'Toffoli', 'CCZ', 'CCNOT'}
+    
+    # Modular arithmetic gates (v2.0)
+    MODULAR_GATES = {'MOD_EXP', 'MOD_ADD', 'MOD_MUL'}
     
     def __init__(self):
         self.tokenizer = QLangTokenizer()
@@ -317,16 +346,42 @@ class QLangParser:
         gate_name = gate_token.value
         line, col = gate_token.line, gate_token.column
         
-        # Check for parameter (for Rx, Ry, Rz)
+        # Check for parameter (for Rx, Ry, Rz and modular gates)
         parameter = None
+        mod_params = None  # For modular gates: (base, modulus)
+        
         if gate_name in self.PARAMETRIC_GATES:
             param_token = self._expect(TokenType.PARAMETER)
             # Remove parentheses
             param_expr = param_token.value[1:-1]
             parameter = Parameter(param_expr, line, col)
+        elif gate_name in self.MODULAR_GATES:
+            # Parse modular gate parameters: MOD_EXP(base, modulus)
+            param_token = self._expect(TokenType.PARAMETER)
+            # Remove parentheses and split by comma
+            param_content = param_token.value[1:-1]
+            parts = [p.strip() for p in param_content.split(',')]
+            
+            if len(parts) != 2:
+                raise SyntaxError(
+                    f"Line {param_token.line}:{param_token.column}: "
+                    f"Modular gate requires 2 parameters (base, modulus), got {len(parts)}"
+                )
+            
+            try:
+                base = int(parts[0])
+                modulus = int(parts[1])
+                mod_params = (base, modulus)
+            except ValueError:
+                raise SyntaxError(
+                    f"Line {param_token.line}:{param_token.column}: "
+                    f"Modular gate parameters must be integers"
+                )
         
         # Determine gate type
-        if gate_name in self.THREE_QUBIT_GATES:
+        if gate_name in self.MODULAR_GATES:
+            return self._parse_modular_gate(gate_name, mod_params[0], mod_params[1], line, col)
+        elif gate_name in self.THREE_QUBIT_GATES:
             return self._parse_three_qubit_gate(gate_name, line, col)
         elif gate_name in self.TWO_QUBIT_GATES:
             return self._parse_two_qubit_gate(gate_name, line, col)
@@ -489,6 +544,34 @@ class QLangParser:
         target = int(target_token.value)
         
         return ThreeQubitGate(gate_name, control1, control2, target, line, col)
+    
+    def _parse_modular_gate(self, gate_name: str, base: int, modulus: int,
+                           line: int, col: int) -> ModularGate:
+        """Parse modular arithmetic gate: MOD_EXP(7,15) 0,1,2-4,5,6,7"""
+        # Parse control qubits (comma-separated list)
+        control_qubits = []
+        control_token = self._expect(TokenType.NUMBER)
+        control_qubits.append(int(control_token.value))
+        
+        while self._current_token().type == TokenType.COMMA:
+            self._advance()
+            control_token = self._expect(TokenType.NUMBER)
+            control_qubits.append(int(control_token.value))
+        
+        # Expect dash separator
+        self._expect(TokenType.DASH)
+        
+        # Parse target qubits (comma-separated list)
+        target_qubits = []
+        target_token = self._expect(TokenType.NUMBER)
+        target_qubits.append(int(target_token.value))
+        
+        while self._current_token().type == TokenType.COMMA:
+            self._advance()
+            target_token = self._expect(TokenType.NUMBER)
+            target_qubits.append(int(target_token.value))
+        
+        return ModularGate(gate_name, base, modulus, control_qubits, target_qubits, line, col)
     
     # Helper methods
     def _current_token(self) -> Token:
