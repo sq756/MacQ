@@ -68,7 +68,7 @@ class QLangTokenizer:
         (TokenType.AND, r'\band\b'),
         (TokenType.OR, r'\bor\b'),
         (TokenType.NOT, r'\bnot\b'),
-        (TokenType.GATE_NAME, r'[A-Z][A-Za-z†]*'),  # Must start with uppercase
+        (TokenType.GATE_NAME, r'[A-Z][A-Za-z0-9_†]*'),  # Allow underscores for MOD_EXP
         (TokenType.IDENTIFIER, r'[a-z][a-z0-9_]*'),  # Lowercase identifiers for classical bits
         (TokenType.NUMBER, r'\d+'),
         (TokenType.PARAMETER, r'\([^)]+\)'),
