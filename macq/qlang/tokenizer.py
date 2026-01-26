@@ -83,15 +83,12 @@ class QLangTokenizer:
     ]
     
     # Valid gate names
-    VALID_GATES = {
-        # Single-qubit gates
-        'H', 'X', 'Y', 'Z', 'I',
-        'S', 'T', 'S†', 'T†',
-        'Rx', 'Ry', 'Rz',
-        # Two-qubit gates
-        'CNOT', 'CZ', 'SWAP', 'CX',
-        # Three-qubit gates
-        'Toffoli', 'CCZ', 'CCNOT',
+    ALLOWED_GATES = {
+        'H', 'X', 'Y', 'Z', 'S', 'T', 'S†', 'T†',  # Single qubit
+        'Rx', 'Ry', 'Rz',  # Parametric
+        'CNOT', 'CX', 'CZ', 'SWAP',  # Two qubit
+        'Toffoli', 'CCNOT', 'CCZ',  # Three qubit
+        'MOD_EXP', 'MOD_ADD', 'MOD_MUL',  # Modular arithmetic (v2.0)
     }
     
     def __init__(self):
@@ -127,7 +124,7 @@ class QLangTokenizer:
             
             # Validate gate names
             if token_type == TokenType.GATE_NAME:
-                if value not in self.VALID_GATES:
+                if value not in self.ALLOWED_GATES:
                     raise SyntaxError(
                         f"Line {line}:{column}: Unknown gate '{value}'"
                     )
