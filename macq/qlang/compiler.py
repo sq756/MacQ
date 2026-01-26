@@ -6,7 +6,8 @@ Converts Q-Lang AST to visual circuit representation
 from typing import List, Dict, Any
 from .parser import (
     Program, TimeStep, GateOperation,
-    SingleQubitGate, TwoQubitGate, ThreeQubitGate
+    SingleQubitGate, TwoQubitGate, ThreeQubitGate,
+    MeasurementNode, ConditionalNode, ModularGate, QFTNode
 )
 
 
@@ -44,6 +45,16 @@ class QLangCompiler:
             return [self._compile_two_qubit_gate(operation, time_step)]
         elif isinstance(operation, ThreeQubitGate):
             return [self._compile_three_qubit_gate(operation, time_step)]
+        elif isinstance(operation, MeasurementNode):
+            return [self._compile_measurement(operation, time_step)]
+        elif isinstance(operation, ConditionalNode):
+            # For now, compile the inner operation with a note
+            # Full runtime conditional support needs C engine update
+            return self._compile_operation(operation.operation, time_step)
+        elif isinstance(operation, ModularGate):
+            return [self._compile_modular_gate(operation, time_step)]
+        elif isinstance(operation, QFTNode):
+            return [self._compile_qft(operation, time_step)]
         
         return []
     
