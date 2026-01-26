@@ -5,21 +5,25 @@ Visual quantum circuit editor with drag-and-drop support
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPainter, QPen, QColor, QFont
+from PySide6.QtGui import QPainter, QPen, QColor, QFont, QLinearGradient
 
 from ..c_bridge import QuantumState
+from .styles import CIRCUIT_EDITOR_STYLE
 
 
 class CircuitEditorWidget(QWidget):
-    """量子电路编辑器"""
+    """量子电路编辑器 - Premium版本"""
     
     circuit_changed = Signal()
-    gate_added = Signal(str, int)  # gate_type, qubit
+    gate_added = Signal(str, int)
     
     def __init__(self):
         super().__init__()
-        self.setMinimumSize(400, 300)
+        self.setMinimumSize(450, 350)
         self.setAcceptDrops(True)
+        
+        # 应用Premium样式
+        self.setStyleSheet(CIRCUIT_EDITOR_STYLE)
         
         self.num_qubits = 3
         self.gates = []  # [(gate_type, qubit, time_step, params), ...]

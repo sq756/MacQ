@@ -1,21 +1,20 @@
-"""
-MacQ GUI - Gate Palette Widget
-Quantum gate selection panel with drag-and-drop support
-"""
-
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QListWidget, QListWidgetItem, QPushButton,
-    QGroupBox, QToolTip
+    QGroupBox, QToolTip, QGraphicsDropShadowEffect
 )
 from PySide6.QtCore import Qt, Signal, QMimeData
-from PySide6.QtGui import QDrag, QCursor
+from PySide6.QtGui import QDrag, QCursor, QColor
+
+from .styles import GATE_PALETTE_STYLE, GATE_COLORS_PREMIUM
 
 
 class GatePaletteWidget(QWidget):
-    """量子门选择面板"""
+    """量子门选择面板 - Premium Design"""
     
-    gate_selected = Signal(str)  # 当门被选中时发出信号
+    gate_selected = Signal(str)
+    
+    # ... (保持原有的GATE_CATEGORIES和GATE_DESCRIPTIONS不变)
     
     # 门分类
     GATE_CATEGORIES = {
@@ -62,22 +61,28 @@ class GatePaletteWidget(QWidget):
     
     def __init__(self):
         super().__init__()
-        self.setMinimumWidth(180)
-        self.setMaximumWidth(250)
+        self.setMinimumWidth(200)
+        self.setMaximumWidth(260)
+        
+        # 应用Premium样式
+        self.setStyleSheet(GATE_PALETTE_STYLE)
+        
         self._init_ui()
         
     def _init_ui(self):
         """初始化UI"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(12)
         
-        # 标题
-        title = QLabel("量子门")
+        # 标题 - 更现代
+        title = QLabel("⚛️ Quantum Gates")
         title.setStyleSheet("""
             QLabel {
-                font-size: 16px;
+                font-size: 18px;
                 font-weight: bold;
-                padding: 5px;
+                padding: 8px;
+                color: #FFFFFF;
             }
         """)
         layout.addWidget(title)
@@ -117,39 +122,51 @@ class GatePaletteWidget(QWidget):
         return group
     
     def _create_gate_button(self, gate_type):
-        """创建单个门按钮"""
+        """创建单个门按钮 - Premium版本"""
         btn = QPushButton(gate_type)
-        btn.setMinimumHeight(35)
+        btn.setMinimumHeight(40)
+        btn.setCursor(Qt.PointingHandCursor)
         
-        # 获取颜色
-        color = self.GATE_COLORS.get(gate_type, '#95A5A6')
+        # 使用渐变背景
+        gradient = GATE_COLORS_PREMIUM.get(
+            gate_type,
+            'qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #95a5a6, stop:1 #7f8c8d)'
+        )
         
         btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {color};
+                background: {gradient};
                 color: white;
                 border: none;
-                border-radius: 4px;
+                border-radius: 10px;
                 font-weight: bold;
                 font-size: 13px;
+                padding: 10px;
             }}
             QPushButton:hover {{
-                background-color: {self._darken_color(color)};
+                transform: scale(1.02);
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
             }}
             QPushButton:pressed {{
-                background-color: {self._darken_color(color, 0.3)};
+                transform: scale(0.98);
             }}
         """)
         
+        # 添加阴影效果
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(10)
+        shadow.setColor(QColor(0, 0, 0, 100))
+        shadow.setOffset(0, 3)
+        btn.setGraphicsEffect(shadow)
+        
         # 设置工具提示
-        description = self.GATE_DESCRIPTIONS.get(gate_type, "量子门")
+        description = self.GATE_DESCRIPTIONS.get(gate_type, "Quantum Gate")
         btn.setToolTip(description)
         
         # 连接信号
         btn.clicked.connect(lambda: self.gate_selected.emit(gate_type))
         
         # 启用拖拽
-        btn.setAcceptDrops(False)
         btn.mousePressEvent = lambda event, g=gate_type: self._start_drag(event, g)
         
         return btn

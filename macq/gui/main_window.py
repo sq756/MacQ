@@ -9,21 +9,27 @@ Licensed under MIT License
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QStatusBar, QMenuBar, QMenu, QToolBar,
-    QLabel, QPushButton, QMessageBox
+    QLabel, QPushButton, QMessageBox, QGraphicsDropShadowEffect
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QAction, QKeySequence, QColor
 
 from ..c_bridge import version
+from .styles import (
+    MAIN_WINDOW_STYLE, RUN_BUTTON_STYLE, CLEAR_BUTTON_STYLE
+)
 
 
 class MainWindow(QMainWindow):
-    """MacQ主窗口"""
+    """MacQ主窗口 - 现代高级设计"""
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("MacQ - Mac原生量子计算仿真")
-        self.setGeometry(100, 100, 1400, 800)
+        self.setWindowTitle("MacQ - Quantum Circuit Simulator")
+        self.setGeometry(100, 100, 1400, 850)
+        
+        # 应用主样式
+        self.setStyleSheet(MAIN_WINDOW_STYLE)
         
         # 初始化组件
         self._init_ui()
@@ -152,31 +158,25 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
         
-        # 运行按钮
-        run_btn = QPushButton("▶ 运行")
-        run_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4A90E2;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #357ABD;
-            }
-            QPushButton:pressed {
-                background-color: #2A5F8F;
-            }
-        """)
+        # 运行按钮 - 渐变样式
+        run_btn = QPushButton("▶ Run Circuit")
+        run_btn.setStyleSheet(RUN_BUTTON_STYLE)
         run_btn.clicked.connect(self._run_circuit)
-        toolbar.addWidget(run_btn)
         
+        # 添加阴影效果
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(15)
+        shadow.setColor(QColor(91, 134, 229, 100))
+        shadow.setOffset(0, 4)
+        run_btn.setGraphicsEffect(shadow)
+        
+        toolbar.addWidget(run_btn)
         toolbar.addSeparator()
         
         # 量子比特控制
-        toolbar.addWidget(QLabel("  量子比特数: "))
+        qubit_label = QLabel("  Qubits: ")
+        qubit_label.setStyleSheet("color: #B0B0B0; font-weight: 600;")
+        toolbar.addWidget(qubit_label)
         
         from PySide6.QtWidgets import QSpinBox
         self.qubit_spinbox = QSpinBox()
@@ -188,9 +188,17 @@ class MainWindow(QMainWindow):
         
         toolbar.addSeparator()
         
-        # 清空按钮
-        clear_btn = QPushButton("🗑️ 清空")
+        # 清空按钮 - 红色渐变
+        clear_btn = QPushButton("🗑 Clear")
+        clear_btn.setStyleSheet(CLEAR_BUTTON_STYLE)
         clear_btn.clicked.connect(self._clear_circuit)
+        
+        shadow2 = QGraphicsDropShadowEffect()
+        shadow2.setBlurRadius(12)
+        shadow2.setColor(QColor(226, 74, 74, 80))
+        shadow2.setOffset(0, 3)
+        clear_btn.setGraphicsEffect(shadow2)
+        
         toolbar.addWidget(clear_btn)
         
     def _create_statusbar(self):
