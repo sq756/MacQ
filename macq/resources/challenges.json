@@ -1,0 +1,138 @@
+[
+    {
+        "id": "bell_state",
+        "title": "Level 1: Bell State",
+        "description": "Prepare the maximally entangled Bell state: (|00> + |11>) / sqrt(2).",
+        "qubits": 2,
+        "target_state": [
+            [
+                0.70710678,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0.70710678,
+                0
+            ]
+        ]
+    },
+    {
+        "id": "teleportation",
+        "title": "Level 2: Teleportation",
+        "description": "Transfer the state of qubit 0 to qubit 2 using entanglement and classical communication components.",
+        "qubits": 3,
+        "target_state": [
+            [
+                1,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ]
+        ]
+    },
+    {
+        "id": "half_adder",
+        "title": "Level 3: Half Adder",
+        "description": "Implement a quantum half-adder. Input: q0, q1. Output: q2 (Sum), q3 (Carry). Hint: Use CX and Toffoli.",
+        "qubits": 4,
+        "target_state": [
+            [
+                1,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ],
+            [
+                0,
+                0
+            ]
+        ]
+    }
+]

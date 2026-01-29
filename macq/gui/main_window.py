@@ -20,10 +20,9 @@ from ..qlang.compiler import QLangDecompiler
 from .styles import (
     MAIN_WINDOW_STYLE, RUN_BUTTON_STYLE, CLEAR_BUTTON_STYLE
 )
-from .gate_palette import GatePaletteWidget
-from .circuit_editor import CircuitEditorWidget
-from .visualizer import VisualizationWidget
 from .qlang_editor import QLangEditorWidget
+from .challenge_panel import ChallengePanel
+from .oracle_dialog import OracleDialog
 
 
 class MainWindow(QMainWindow):
@@ -57,17 +56,25 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         
         # Initialize components
-        self.gate_palette = GatePaletteWidget()
-        self.circuit_editor = CircuitEditorWidget()
-        self.visualizer = VisualizationWidget()
-        self.qlang_editor = QLangEditorWidget()
-        self.decompiler = QLangDecompiler()
-
-        # Main horizontal splitter
-        main_splitter = QSplitter(Qt.Horizontal)
+        from PySide6.QtWidgets import QTabWidget
+        self.left_tabs = QTabWidget()
+        self.left_tabs.setTabPosition(QTabWidget.West) # Modern vertical tabs
+        self.left_tabs.setStyleSheet("""
+            QTabWidget::pane { border: none; background: #0F111A; }
+            QTabBar::tab { 
+                background: #1E2237; color: #A0A0A0; padding: 15px; 
+                margin-bottom: 2px; border-top-right-radius: 4px; border-bottom-right-radius: 4px;
+            }
+            QTabBar::tab:selected { background: #4A90E2; color: white; }
+        """)
         
-        # Left: Gate palette
-        main_splitter.addWidget(self.gate_palette)
+        self.gate_palette = GatePaletteWidget()
+        self.challenge_panel = ChallengePanel()
+        
+        self.left_tabs.addTab(self.gate_palette, "⚛️ Gates")
+        self.left_tabs.addTab(self.challenge_panel, "🧩 Challenges")
+        
+        main_splitter.addWidget(self.left_tabs)
         
         # Center: Vertical splitter for circuit editor and Q-Lang editor
         center_splitter = QSplitter(Qt.Vertical)
@@ -343,9 +350,15 @@ class MainWindow(QMainWindow):
         # 门被添加时的反馈
         self.circuit_editor.gate_added.connect(self._on_gate_added)
         
+        # Palette Signals
+        self.gate_palette.gate_selected.connect(self._on_gate_palette_selected)
+        
         # Q-Lang editor signals
         self.qlang_editor.code_compiled.connect(self._sync_code_to_circuit)
         self.qlang_editor.qubit_count_detected.connect(self.qubit_spinner.setValue)
+        
+        # Challenge Signals
+        self.challenge_panel.verify_requested.connect(self._verify_challenge)
         
         # Toolbar buttons
         self.run_btn.clicked.connect(self._run_circuit)
@@ -354,6 +367,57 @@ class MainWindow(QMainWindow):
         # Set initial qubit count for Q-Lang editor
         self.qlang_editor.set_qubit_count(self.qubit_spinner.value())
         
+    def _on_gate_palette_selected(self, gate_name):
+        """Handle gate selection from palette, including special Oracle/Algorithms"""
+        if gate_name == "Oracle":
+            dialog = OracleDialog(self.qubit_spinner.value(), self)
+            dialog.gates_generated.connect(self._add_multiple_gates)
+            dialog.exec()
+        elif gate_name == "QFT":
+            # Add a 3-qubit QFT as a template if enough qubits
+            self._add_qft_template()
+        elif gate_name == "Grover":
+            self._add_grover_template()
+        # Non-special gates are handled by drag-and-drop usually, 
+        # but we could also allow click-to-add for convenience
+        
+    def _add_multiple_gates(self, gate_list):
+        """Add a list of gates (from Oracle or Macro) to the circuit"""
+        for g in gate_list:
+            # We add them consecutively
+            self.circuit_editor.add_gate(g['type'], g['qubit'] if 'qubit' in g else g['qubits'][0], 
+                                          control=g['qubits'][:-1] if 'qubits' in g and len(g['qubits']) > 1 else None)
+        self._sync_circuit_to_code()
+        self.circuit_editor.update()
+
+    def _add_qft_template(self):
+        """Add a standard QFT template for first 3 qubits"""
+        if self.qubit_spinner.value() < 3: return
+        qft_gates = [
+            {'type': 'H', 'qubit': 0},
+            {'type': 'CZ', 'qubits': [1, 0]}, # Simplified CP gate
+            {'type': 'CZ', 'qubits': [2, 0]},
+            {'type': 'H', 'qubit': 1},
+            {'type': 'CZ', 'qubits': [2, 1]},
+            {'type': 'H', 'qubit': 2},
+            {'type': 'SWAP', 'qubits': [0, 2]}
+        ]
+        self._add_multiple_gates(qft_gates)
+
+    def _add_grover_template(self):
+        """Add a Grover Diffusion operator for 2 qubits"""
+        if self.qubit_spinner.value() < 2: return
+        grover_gates = [
+            {'type': 'H', 'qubit': 0}, {'type': 'H', 'qubit': 1},
+            {'type': 'X', 'qubit': 0}, {'type': 'X', 'qubit': 1},
+            {'type': 'H', 'qubit': 1},
+            {'type': 'CNOT', 'qubits': [0, 1]},
+            {'type': 'H', 'qubit': 1},
+            {'type': 'X', 'qubit': 0}, {'type': 'X', 'qubit': 1},
+            {'type': 'H', 'qubit': 0}, {'type': 'H', 'qubit': 1}
+        ]
+        self._add_multiple_gates(grover_gates)
+
     def _on_circuit_changed(self):
         """电路改变时的处理"""
         self._update_statusbar()
@@ -427,6 +491,30 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "保存错误", f"无法保存文件:\n{str(e)}")
         
+    def _verify_challenge(self, challenge_id: str):
+        """Run the circuit and verify against the challenge target"""
+        from ..c_bridge import QuantumState
+        
+        # Get current circuit data
+        gates = self.circuit_editor.gates
+        qubits = self.circuit_editor.get_qubit_count()
+        
+        try:
+            state = QuantumState(qubits)
+            for gate in gates:
+                state.apply_gate(gate)
+            
+            vec = state.get_statevector()
+            
+            # Judge result
+            result = self.challenge_panel.judge.verify(challenge_id, vec)
+            
+            # Show feedback
+            self.challenge_panel.show_result(result)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Execution Error", f"Could not simulate circuit: {e}")
+
     def _export_image(self):
         """导出电路图片 (PNG/JPG)"""
         from PySide6.QtWidgets import QFileDialog

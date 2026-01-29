@@ -17,12 +17,8 @@ class GatePaletteWidget(QWidget):
     # ... (保持原有的GATE_CATEGORIES和GATE_DESCRIPTIONS不变)
     
     # 门分类
-    GATE_CATEGORIES = {
-        "基础门": ["H", "X", "Y", "Z", "I"],
-        "相位门": ["S", "T", "S†", "T†"],
-        "旋转门": ["Rx", "Ry", "Rz"],
-        "双比特门": ["CNOT", "CZ", "SWAP"],
-        "多比特门": ["Toffoli"]
+        "多比特门": ["Toffoli"],
+        "高级算法": ["QFT", "Grover", "Oracle"]
     }
     
     # 门的颜色
@@ -36,7 +32,10 @@ class GatePaletteWidget(QWidget):
         'CNOT': '#8E44AD', # 深紫
         'CZ': '#16A085',   # 青色
         'SWAP': '#F39C12', # 金色
-        'Toffoli': '#C0392B' # 褐红
+        'Toffoli': '#C0392B', # 褐红
+        'QFT': '#FF4B2B',   # 红色渐变
+        'Grover': '#1A2A6C', # 深蓝
+        'Oracle': '#834D9B'  # 紫色
     }
     
     # 门的说明
@@ -56,7 +55,10 @@ class GatePaletteWidget(QWidget):
         'CNOT': 'CNOT门 - 受控非门',
         'CZ': 'CZ门 - 受控Z门',
         'SWAP': 'SWAP门 - 交换两个量子比特',
-        'Toffoli': 'Toffoli门 - 双控制非门'
+        'Toffoli': 'Toffoli门 - 双控制非门',
+        'QFT': '量子傅里叶变换 - 变换基底',
+        'Grover': 'Grover算子 - 扩散算子',
+        'Oracle': '逻辑表达式生成器 - 点击配置'
     }
     
     def __init__(self):

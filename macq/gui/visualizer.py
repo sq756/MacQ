@@ -116,6 +116,9 @@ class ProbabilityChart(FigureCanvasQTAgg):
         self.axes.spines['top'].set_visible(False)
         self.axes.spines['right'].set_visible(False)
         
+        # Register mapping: {reg_name: [qubit_indices]}
+        self.registers = {}
+        
     def update_data(self, state, counts=None, shots=None):
         """更新概率显示 - Histogram 2.0 (理论 vs 实验)"""
         theo_probs = state.probabilities()
@@ -138,7 +141,21 @@ class ProbabilityChart(FigureCanvasQTAgg):
         if len(significant_indices) > 24:
             significant_indices = significant_indices[:24]
             
-        labels = [f"{i:0{num_qubits}b}" for i in significant_indices]
+        def get_label(idx):
+            bin_str = f"{idx:0{num_qubits}b}"
+            if not self.registers:
+                return f"|{bin_str}⟩"
+            
+            labels = []
+            for name, indices in self.registers.items():
+                val = 0
+                for i, q_idx in enumerate(reversed(indices)):
+                    if bin_str[q_idx] == '1':
+                        val += (1 << i)
+                labels.append(f"{name}={val}")
+            return "| " + " ⊗ ".join(labels) + " ⟩"
+
+        labels = [get_label(i) for i in significant_indices]
         theo_vals = [theo_probs[i] for i in significant_indices]
         
         x = np.arange(len(labels))
