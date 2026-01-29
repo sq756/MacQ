@@ -33,6 +33,7 @@ class TokenType(Enum):
     OR = auto()             # or
     NOT = auto()            # not
     EQUALS = auto()         # ==
+    QUBITS = auto()         # qubits
     
     # Special
     COMMENT = auto()        # # ...
@@ -68,6 +69,7 @@ class QLangTokenizer:
         (TokenType.AND, r'\band\b'),
         (TokenType.OR, r'\bor\b'),
         (TokenType.NOT, r'\bnot\b'),
+        (TokenType.QUBITS, r'\bqubits\b'),
         (TokenType.GATE_NAME, r'[A-Z][A-Za-z0-9_†]*'),  # Allow underscores for MOD_EXP
         (TokenType.IDENTIFIER, r'[a-z][a-z0-9_]*'),  # Lowercase identifiers for classical bits
         (TokenType.NUMBER, r'\d+'),
@@ -221,4 +223,15 @@ if __name__ == '__main__':
     except SyntaxError as e:
         print("Test 3: Error handling")
         print("=" * 50)
-        print(f"Caught expected error: {e}")
+    
+    # Test case 4: Qubits directive
+    code4 = "qubits 8\nH 0"
+    
+    print("Test 4: Qubits directive")
+    print("=" * 50)
+    tokens = tokenizer.tokenize(code4)
+    for token in tokens:
+        print(token)
+    print()
+    
+    print("\n✅ All tokenizer tests completed!")

@@ -1,0 +1,45 @@
+[build-system]
+requires = ["scikit-build-core>=0.5", "setuptools_scm>=8"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "macq"
+version = "1.2.0"
+description = "Mac-Native Quantum Computing Simulator"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "MacQ Development Team" },
+]
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.20.0",
+    "matplotlib>=3.5.0",
+    "PySide6>=6.0.0",
+    "scipy>=1.7.0",
+]
+
+[project.scripts]
+macq = "macq.cli:main"
+
+[tool.scikit-build]
+cmake.version = ">=3.15"
+ninja.version = ">=1.10"
+install.components = ["runtime"]
+# No need for expand-macos-bundle-install if it's invalid
+
+[tool.cibuildwheel]
+build = "*"
+skip = "cp36-* cp37-* cp38-* pp*"
+test-command = "macq --version"
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+build-verbosity = 1
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64"]
+repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"

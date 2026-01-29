@@ -26,11 +26,11 @@
 ### 核心特性
 
 - 🚀 **C语言原生引擎**: 100% 纯 C 编写的量子态计算核心，零 Python 开销
-- 🍎 **Apple Silicon 优化**: 深度集成 Accelerate 框架，充分利用 M 系列芯片的 SIMD 加速
+- 🍎 **Apple Silicon 优化**: 深度集成 Accelerate 框架，支持 **GCD 多线程**与 **ARM NEON SIMD** 加速
+- 🧪 **物理仿真增强**: 支持**密度矩阵**、**偏迹 (Partial Trace)** 与随机**噪声模型**
 - 🖥️ **macOS 原生应用**: 真正的桌面软件，非 web 应用或 Python 脚本
-- 🎨 **可视化编辑器**: 拖拽式量子门块设计，直观易用
-- ⚡ **极致性能**: 目标性能 100 万量子门操作/秒
-- 🔧 **完整门集**: 支持量子图灵完备门集 (H, S, T, CNOT, Toffoli 等)
+- 🎨 **可视化编辑器**: 拖拽式量子门块设计，支持 Q-Lang 智能编译器 (v2.0)
+- ⚡ **极致性能**: 跨平台多线程架构，专为 M-系列芯片极致优化
 
 ### 架构设计
 
@@ -48,10 +48,10 @@
 └─────────────────┬───────────────────────┘
                   │ libmacq.dylib
 ┌─────────────────▼───────────────────────┐
-│  C Engine (C + Accelerate)              │  100万门/秒
-│  - 量子态向量操作                        │
-│  - SIMD 加速计算                         │
-│  - 16字节内存对齐                        │
+│  C Engine (C + GCD + SIMD)              │  高性能计算
+│  - 量子态向量操作 & 多线程并行             │
+│  - NEON/SSE SIMD 加速实现                │
+│  - 密度矩阵与噪声模拟模块                 │
 └─────────────────────────────────────────┘
 ```
 
@@ -141,9 +141,9 @@ MacQ/
 
 ### 路线图
 
-- [x] **2026 Q1**: 完整单量子比特门集
-- [ ] **2026 Q2**: 自定义门矩阵、QASM 导出
-- [ ] **2026 Q3**: Bloch 球面 3D 可视化、噪声模型
+- [x] **2026 Q1**: 完整单量子比特门集、Q-Lang 编译器 v2.0
+- [x] **2026 Q2**: **C-Engine v2.1**: 多线程加速、SIMD 优化、噪声模型
+- [ ] **2026 Q3**: Bloch 球面 3D 可视化、自定义门矩阵
 - [ ] **2026 Q4**: 硬件后端集成、分布式仿真
 
 ### 贡献
@@ -170,11 +170,11 @@ MacQ/
 ### Key Features
 
 - 🚀 **C Native Engine**: 100% pure C-written quantum state computation core, zero Python overhead
-- 🍎 **Apple Silicon Optimized**: Deep integration with Accelerate framework, fully leveraging M-series chip SIMD acceleration
+- 🍎 **Apple Silicon Optimized**: Deep integration with Accelerate framework, **GCD multi-threading**, and **ARM NEON SIMD**
+- 🧪 **Physical Simulation**: Advanced support for **Density Matrices**, **Partial Trace**, and stochastic **Noise Models**
 - 🖥️ **macOS Native App**: True desktop software, not a web app or Python script
-- 🎨 **Visual Editor**: Drag-and-drop quantum gate blocks, intuitive and user-friendly
-- ⚡ **Ultimate Performance**: Target performance of 1 million quantum gate operations per second
-- 🔧 **Complete Gate Set**: Supports quantum Turing-complete gate sets (H, S, T, CNOT, Toffoli, etc.)
+- 🎨 **Visual Editor**: Drag-and-drop quantum gate blocks with Q-Lang smart compiler (v2.0)
+- ⚡ **Ultimate Performance**: Highly-optimized multi-threaded architecture for M-series chips
 
 ### Architecture
 
@@ -192,10 +192,10 @@ MacQ/
 └─────────────────┬───────────────────────┘
                   │ libmacq.dylib
 ┌─────────────────▼───────────────────────┐
-│  C Engine (C + Accelerate)              │  1M Gates/sec
-│  - Quantum State Vector Operations      │
-│  - SIMD Accelerated Computing           │
-│  - 16-byte Memory Alignment             │
+│  C Engine (C + GCD + SIMD)              │  Advanced HPC
+│  - Quantum State Vector & Multi-threading│
+│  - NEON/SSE SIMD Implementation         │
+│  - Density Matrix & Noise Modules       │
 └─────────────────────────────────────────┘
 ```
 
@@ -285,10 +285,10 @@ MacQ/
 
 ### Roadmap
 
-- [x] **2026 Q1**: Complete single-qubit gate set
-- [ ] **2026 Q2**: Custom gate matrix, QASM export
-- [ ] **2026 Q3**: Bloch sphere 3D visualization, noise models
-- [ ] **2026 Q4**: Hardware backend integration, distributed simulation
+- [x] **2026 Q1**: Complete single-qubit gate set, Q-Lang v2.0
+- [x] **2026 Q2**: **C-Engine v2.1**: Multi-threaded, SIMD, Noise models
+- [ ] **2026 Q3**: Bloch sphere 3D visualization, Custom gate matrix
+- [ ] **2026 Q4**: Hardware backend integration, Distributed simulation
 
 ### Contributing
 

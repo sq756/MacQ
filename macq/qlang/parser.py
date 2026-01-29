@@ -20,6 +20,20 @@ class ASTNode:
 
 
 @dataclass
+class QubitsNode(ASTNode):
+    """qubits N directive"""
+    count: int
+    
+    def __init__(self, count: int, line: int = 0, column: int = 0):
+        self.count = count
+        self.line = line
+        self.column = column
+    
+    def __repr__(self):
+        return f"qubits {self.count}"
+
+
+@dataclass
 class Parameter(ASTNode):
     """Parameter for parametric gates (e.g., π/4, 0.5)"""
     expression: str
@@ -237,7 +251,7 @@ class ThreeQubitGate(ASTNode):
 
 
 # Type alias for gate operations (including measurements, conditionals, modular gates, and QFT)
-GateOperation = Union[SingleQubitGate, TwoQubitGate, ThreeQubitGate, MeasurementNode, ConditionalNode, ModularGate, QFTNode]
+GateOperation = Union[SingleQubitGate, TwoQubitGate, ThreeQubitGate, MeasurementNode, ConditionalNode, ModularGate, QFTNode, QubitsNode]
 
 
 @dataclass
@@ -259,9 +273,12 @@ class TimeStep(ASTNode):
 class Program(ASTNode):
     """Root node representing entire Q-Lang program"""
     time_steps: List[TimeStep]
+    num_qubits: Optional[int] = None
     
-    def __init__(self, time_steps: List[TimeStep], line: int = 0, column: int = 0):
+    def __init__(self, time_steps: List[TimeStep], num_qubits: Optional[int] = None, 
+                 line: int = 0, column: int = 0):
         self.time_steps = time_steps
+        self.num_qubits = num_qubits
         self.line = line
         self.column = column
     
@@ -312,6 +329,7 @@ class QLangParser:
         
         # Parse program
         time_steps = []
+        num_qubits = None
         
         while not self._is_eof():
             # Skip empty lines
@@ -322,13 +340,18 @@ class QLangParser:
             # Parse time step
             time_step = self._parse_time_step()
             if time_step.operations:  # Only add non-empty steps
+                # Extract num_qubits if present
+                for op in time_step.operations:
+                    if isinstance(op, QubitsNode):
+                        num_qubits = op.count
+                
                 time_steps.append(time_step)
             
             # Expect newline or EOF
             if not self._is_eof():
                 self._expect(TokenType.NEWLINE)
         
-        return Program(time_steps, 0, 0)
+        return Program(time_steps, num_qubits, 0, 0)
     
     def _parse_time_step(self) -> TimeStep:
         """Parse a single time step (one line)"""
@@ -362,6 +385,12 @@ class QLangParser:
         # Check for measurement
         if current.type == TokenType.MEASURE:
             return self._parse_measurement()
+        
+        # Check for qubits directive
+        if current.type == TokenType.QUBITS:
+            self._advance()
+            num_token = self._expect(TokenType.NUMBER)
+            return QubitsNode(int(num_token.value), current.line, current.column)
         
         # Otherwise parse gate
         gate_token = self._expect(TokenType.GATE_NAME)
@@ -583,8 +612,11 @@ class QLangParser:
             control_token = self._expect(TokenType.NUMBER)
             control_qubits.append(int(control_token.value))
         
-        # Expect dash separator
-        self._expect(TokenType.DASH)
+        # Expect dash or arrow separator
+        if self._current_token().type == TokenType.ARROW:
+            self._advance()
+        else:
+            self._expect(TokenType.DASH)
         
         # Parse target qubits (comma-separated list)
         target_qubits = []

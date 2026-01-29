@@ -11,6 +11,16 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef __APPLE__
+#include <Accelerate/Accelerate.h>
+#include <dispatch/dispatch.h>
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#elif defined(__x86_64__)
+#include <immintrin.h>
+#endif
+#endif
+
 #define MACQ_VERSION "1.0.0"
 #define MAX_QUBITS 30 // Maximum recommended qubits for full state vector
 
@@ -248,6 +258,54 @@ MacQError qstate_apply_h(QuantumState *qs, int target) {
   size_t block_size = 1ULL << target;
   size_t num_blocks = qs->vector_size >> (target + 1);
 
+#ifdef __APPLE__
+  dispatch_apply(
+      num_blocks, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0),
+      ^(size_t block) {
+        size_t base_idx = block * (block_size << 1);
+
+        // Use SIMD for inner loop if block_size is small or just as
+        // parallel processing
+        for (size_t i = 0; i < block_size; i++) {
+          size_t idx0 = base_idx + i;
+          size_t idx1 = idx0 + block_size;
+
+#if defined(__aarch64__)
+          // NEON optimization for complex math: (a0 + a1)*inv_sqrt2, (a0 -
+          // a1)*inv_sqrt2
+          float64x2_t v_a0 = vld1q_f64((double *)&qs->state_vector[idx0]);
+          float64x2_t v_a1 = vld1q_f64((double *)&qs->state_vector[idx1]);
+
+          float64x2_t v_sum = vaddq_f64(v_a0, v_a1);
+          float64x2_t v_diff = vsubq_f64(v_a0, v_a1);
+          float64x2_t v_inv = vdupq_n_f64(inv_sqrt2);
+
+          vst1q_f64((double *)&qs->state_vector[idx0], vmulq_f64(v_sum, v_inv));
+          vst1q_f64((double *)&qs->state_vector[idx1],
+                    vmulq_f64(v_diff, v_inv));
+#elif defined(__x86_64__)
+          // SSE2 optimization for x86_64
+          __m128d v_a0 = _mm_load_pd((double *)&qs->state_vector[idx0]);
+          __m128d v_a1 = _mm_load_pd((double *)&qs->state_vector[idx1]);
+
+          __m128d v_sum = _mm_add_pd(v_a0, v_a1);
+          __m128d v_diff = _mm_sub_pd(v_a0, v_a1);
+          __m128d v_inv = _mm_set1_pd(inv_sqrt2);
+
+          _mm_store_pd((double *)&qs->state_vector[idx0],
+                       _mm_mul_pd(v_sum, v_inv));
+          _mm_store_pd((double *)&qs->state_vector[idx1],
+                       _mm_mul_pd(v_diff, v_inv));
+#else
+          cplx a0 = qs->state_vector[idx0];
+          cplx a1 = qs->state_vector[idx1];
+          // H = 1/√2 * [[1, 1], [1, -1]]
+          qs->state_vector[idx0] = inv_sqrt2 * (a0 + a1);
+          qs->state_vector[idx1] = inv_sqrt2 * (a0 - a1);
+#endif
+        }
+      });
+#else
   for (size_t block = 0; block < num_blocks; block++) {
     size_t base_idx = block * (block_size << 1);
 
@@ -263,6 +321,7 @@ MacQError qstate_apply_h(QuantumState *qs, int target) {
       qs->state_vector[idx1] = inv_sqrt2 * (a0 - a1);
     }
   }
+#endif
 
   return MACQ_SUCCESS;
 }
@@ -636,6 +695,145 @@ MacQError qstate_apply_mod_exp(QuantumState *qs, int a, int N, int num_controls,
 }
 
 // ============================================================================
+// Density Matrix Operations
+// ============================================================================
+
+DensityMatrix *dmatrix_create(int num_qubits) {
+  if (num_qubits < 1 || num_qubits > MAX_QUBITS / 2) {
+    fprintf(stderr,
+            "Error: num_qubits for density matrix must be between 1 and %d\n",
+            MAX_QUBITS / 2);
+    return NULL;
+  }
+
+  DensityMatrix *dm = (DensityMatrix *)malloc(sizeof(DensityMatrix));
+  if (!dm)
+    return NULL;
+
+  dm->num_qubits = num_qubits;
+  dm->dim = 1ULL << num_qubits;
+
+#ifdef __APPLE__
+  posix_memalign((void **)&dm->_aligned_buffer, 16,
+                 dm->dim * dm->dim * sizeof(cplx));
+#else
+  dm->_aligned_buffer = aligned_alloc(16, dm->dim * dm->dim * sizeof(cplx));
+#endif
+
+  if (!dm->_aligned_buffer) {
+    free(dm);
+    return NULL;
+  }
+
+  dm->data = (cplx *)dm->_aligned_buffer;
+  memset(dm->data, 0, dm->dim * dm->dim * sizeof(cplx));
+
+  return dm;
+}
+
+void dmatrix_free(DensityMatrix *dm) {
+  if (dm) {
+    if (dm->_aligned_buffer)
+      free(dm->_aligned_buffer);
+    free(dm);
+  }
+}
+
+DensityMatrix *dmatrix_from_qstate(const QuantumState *qs) {
+  if (!qs)
+    return NULL;
+
+  DensityMatrix *dm = dmatrix_create(qs->num_qubits);
+  if (!dm)
+    return NULL;
+
+  for (size_t i = 0; i < qs->vector_size; i++) {
+    cplx amp_i = qs->state_vector[i];
+    if (creal(amp_i) == 0 && cimag(amp_i) == 0)
+      continue;
+
+    for (size_t j = 0; j < qs->vector_size; j++) {
+      cplx amp_j = qs->state_vector[j];
+      dm->data[i * dm->dim + j] = amp_i * conj(amp_j);
+    }
+  }
+
+  return dm;
+}
+
+MacQError dmatrix_partial_trace(const DensityMatrix *src,
+                                int num_qubits_to_trace,
+                                const int *qubits_to_trace,
+                                DensityMatrix **dst) {
+  if (!src || !qubits_to_trace || !dst)
+    return MACQ_ERROR_NULL_POINTER;
+
+  int num_dst_qubits = src->num_qubits - num_qubits_to_trace;
+  if (num_dst_qubits <= 0)
+    return MACQ_ERROR_INVALID_QUBITS;
+
+  *dst = dmatrix_create(num_dst_qubits);
+  if (!*dst)
+    return MACQ_ERROR_OUT_OF_MEMORY;
+
+  // Partial trace implementation
+  size_t trace_dim = 1ULL << num_qubits_to_trace;
+  size_t dst_dim = (*dst)->dim;
+
+  for (size_t i = 0; i < dst_dim; i++) {
+    for (size_t j = 0; j < dst_dim; j++) {
+      cplx sum = 0;
+      for (size_t k = 0; k < trace_dim; k++) {
+        // Map (i, k) and (j, k) back to original basis
+        size_t orig_i = 0, orig_j = 0;
+        int dst_bit_ptr = 0, trace_bit_ptr = 0;
+
+        for (int b = 0; b < src->num_qubits; b++) {
+          bool is_trace = false;
+          for (int t = 0; t < num_qubits_to_trace; t++) {
+            if (qubits_to_trace[t] == b) {
+              is_trace = true;
+              break;
+            }
+          }
+
+          if (is_trace) {
+            if (k & (1ULL << trace_bit_ptr)) {
+              orig_i |= (1ULL << b);
+              orig_j |= (1ULL << b);
+            }
+            trace_bit_ptr++;
+          } else {
+            if (i & (1ULL << dst_bit_ptr))
+              orig_i |= (1ULL << b);
+            if (j & (1ULL << dst_bit_ptr))
+              orig_j |= (1ULL << b);
+            dst_bit_ptr++;
+          }
+        }
+        sum += src->data[orig_i * src->dim + orig_j];
+      }
+      (*dst)->data[i * dst_dim + j] = sum;
+    }
+  }
+
+  return MACQ_SUCCESS;
+}
+
+MacQError dmatrix_export_data(const DensityMatrix *dm, double *real_part,
+                              double *imag_part) {
+  if (!dm || !real_part || !imag_part)
+    return MACQ_ERROR_NULL_POINTER;
+
+  for (size_t i = 0; i < dm->dim * dm->dim; i++) {
+    real_part[i] = creal(dm->data[i]);
+    imag_part[i] = cimag(dm->data[i]);
+  }
+
+  return MACQ_SUCCESS;
+}
+
+// ============================================================================
 // Measurement
 // ============================================================================
 
@@ -758,6 +956,110 @@ void qstate_print_info(const QuantumState *qs) {
     }
   }
   printf("======================================\n");
+}
+
+// ============================================================================
+// Noise Channels
+// ============================================================================
+
+MacQError qstate_apply_amplitude_damping(QuantumState *qs, int target,
+                                         double rate) {
+  if (!is_valid_qubit_index(qs, target))
+    return MACQ_ERROR_INVALID_INDEX;
+
+  // Stochastic realization: with probability 'rate * prob_1', decay |1> -> |0>
+  double prob_1 = qstate_probability(qs, target);
+  double rand_val = (double)rand() / RAND_MAX;
+
+  if (rand_val < rate * prob_1) {
+    size_t mask = 1ULL << target;
+    for (size_t i = 0; i < qs->vector_size; i++) {
+      if (i & mask) {
+        size_t idx0 = i & ~mask;
+        qs->state_vector[idx0] = qs->state_vector[i];
+        qs->state_vector[i] = 0;
+      }
+    }
+    // State is already normalized if it was |1>, but let's be sure
+    qstate_normalize(qs);
+  }
+  return MACQ_SUCCESS;
+}
+
+MacQError qstate_apply_phase_damping(QuantumState *qs, int target,
+                                     double rate) {
+  if (!is_valid_qubit_index(qs, target))
+    return MACQ_ERROR_INVALID_INDEX;
+
+  double rand_val = (double)rand() / RAND_MAX;
+  if (rand_val < rate) {
+    // Phase flip with probability rate
+    qstate_apply_z(qs, target);
+  }
+  return MACQ_SUCCESS;
+}
+
+MacQError qstate_apply_depolarizing(QuantumState *qs, int target, double rate) {
+  if (!is_valid_qubit_index(qs, target))
+    return MACQ_ERROR_INVALID_INDEX;
+
+  double rand_val = (double)rand() / RAND_MAX;
+  if (rand_val < rate) {
+    double type = (double)rand() / RAND_MAX;
+    if (type < 0.333)
+      qstate_apply_x(qs, target);
+    else if (type < 0.666)
+      qstate_apply_y(qs, target);
+    else
+      qstate_apply_z(qs, target);
+  }
+  return MACQ_SUCCESS;
+}
+
+// ============================================================================
+// Hamiltonian & Expectation Values
+// ============================================================================
+
+double qstate_expectation_value(const QuantumState *qs, int num_gates,
+                                const QuantumGate *gates) {
+  if (!qs || !gates || num_gates == 0)
+    return 0.0;
+
+  // Clone to apply O
+  QuantumState *temp_qs = qstate_clone(qs);
+  if (!temp_qs)
+    return 0.0;
+
+  // Apply gates as the operator (simplified)
+  for (int i = 0; i < num_gates; i++) {
+    const QuantumGate *g = &gates[i];
+    switch (g->type) {
+    case GATE_X:
+      qstate_apply_x(temp_qs, g->target);
+      break;
+    case GATE_Y:
+      qstate_apply_y(temp_qs, g->target);
+      break;
+    case GATE_Z:
+      qstate_apply_z(temp_qs, g->target);
+      break;
+    case GATE_H:
+      qstate_apply_h(temp_qs, g->target);
+      break;
+    // Add other gates as needed...
+    default:
+      break;
+    }
+  }
+
+  // <psi|O|psi>
+  cplx dot = 0;
+  for (size_t i = 0; i < qs->vector_size; i++) {
+    dot += conj(qs->state_vector[i]) * temp_qs->state_vector[i];
+  }
+
+  qstate_free(temp_qs);
+  return creal(dot);
 }
 
 const char *macq_version(void) { return "MacQ v" MACQ_VERSION; }

@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 from .parser import (
     Program, TimeStep, GateOperation,
     SingleQubitGate, TwoQubitGate, ThreeQubitGate,
-    MeasurementNode, ConditionalNode, ModularGate, QFTNode
+    MeasurementNode, ConditionalNode, ModularGate, QFTNode, QubitsNode
 )
 
 
@@ -55,6 +55,8 @@ class QLangCompiler:
             return [self._compile_modular_gate(operation, time_step)]
         elif isinstance(operation, QFTNode):
             return [self._compile_qft(operation, time_step)]
+        elif isinstance(operation, QubitsNode):
+            return []
         
         return []
     

@@ -74,6 +74,7 @@ class QLangEditorWidget(QWidget):
     
     # Signal emitted when code is compiled successfully
     code_compiled = Signal(list)  # List of gate dicts
+    qubit_count_detected = Signal(int)  # Detected qubit count from directive
     
     def __init__(self):
         super().__init__()
@@ -167,7 +168,7 @@ class QLangEditorWidget(QWidget):
                 background: #357ABD;
             }
         """)
-        self.compile_btn.clicked.connect(self._compile_code)
+        self.compile_btn.clicked.connect(self.compile_code)
         button_layout.addWidget(self.compile_btn)
         
         # Clear button
@@ -217,7 +218,7 @@ class QLangEditorWidget(QWidget):
         """Get editor content"""
         return self.editor.toPlainText()
     
-    def _compile_code(self):
+    def compile_code(self):
         """Compile Q-Lang code to gates"""
         code = self.get_code()
         
@@ -238,6 +239,12 @@ class QLangEditorWidget(QWidget):
                 }
             """)
             ast = self.parser.parse(code)
+            
+            # Check for qubit count directive
+            if ast.num_qubits is not None:
+                self.qubit_count_detected.emit(ast.num_qubits)
+                # Re-initialize validator with new count
+                self.set_qubit_count(ast.num_qubits)
             
             # Validate (if validator is set)
             if self.validator:

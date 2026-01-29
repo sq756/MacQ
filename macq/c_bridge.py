@@ -45,31 +45,40 @@ class MacQError(IntEnum):
     ERROR_INVALID_GATE = -3
     ERROR_INVALID_INDEX = -4
     ERROR_NULL_POINTER = -5
+    ERROR_DIMENSION_MISMATCH = -6
 
 # ============================================================================
 # Load C Library
 # ============================================================================
 
 def _find_library():
-    """Find libmacq.dylib in various possible locations"""
-    # Try relative to this module
+    """Find the compiled core library in the package or local directories"""
     module_dir = os.path.dirname(os.path.abspath(__file__))
     
-    possible_paths = [
-        os.path.join(module_dir, '..', 'c_engine', 'libmacq.dylib'),
-        '/usr/local/lib/libmacq.dylib',
-        './libmacq.dylib',
-        'libmacq.dylib'
+    # Extension names to look for
+    lib_names = [
+        'libmacq_core.dylib', # macOS
+        'macq_core.dll',      # Windows
+        'libmacq_core.so',    # Linux
+        'libmacq.dylib',      # Legacy/Local
     ]
     
-    for path in possible_paths:
-        abs_path = os.path.abspath(path)
-        if os.path.exists(abs_path):
-            return abs_path
+    # Directories to search
+    search_dirs = [
+        os.path.join(module_dir, 'core'),           # Package location (installed)
+        os.path.join(module_dir, '..', 'c_engine'), # Development location
+        module_dir,                                 # Current dir
+    ]
+    
+    for d in search_dirs:
+        for name in lib_names:
+            path = os.path.join(d, name)
+            if os.path.exists(path):
+                return path
     
     raise FileNotFoundError(
-        "Could not find libmacq.dylib. "
-        "Please build the C engine with 'make native' in c_engine/ directory."
+        "Could not find MacQ core library. "
+        "Please install the package with 'pip install .' or build the C engine manually."
     )
 
 # Load the library
@@ -160,6 +169,21 @@ _lib.qstate_apply_mod_exp.argtypes = [
     ctypes.c_int, ctypes.POINTER(ctypes.c_int)
 ]
 
+# Noise Channels
+_lib.qstate_apply_amplitude_damping.restype = ctypes.c_int
+_lib.qstate_apply_amplitude_damping.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_double]
+
+_lib.qstate_apply_phase_damping.restype = ctypes.c_int
+_lib.qstate_apply_phase_damping.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_double]
+
+_lib.qstate_apply_depolarizing.restype = ctypes.c_int
+_lib.qstate_apply_depolarizing.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_double]
+
+# Expectations
+_lib.qstate_expectation_value.restype = ctypes.c_double
+# Note: Simplified version, gates passed as array of QuantumGate objects
+# We need to define QuantumGate structure first
+
 # Measurement
 _lib.qstate_measure.restype = ctypes.c_int
 _lib.qstate_measure.argtypes = [ctypes.c_void_p, ctypes.c_int]
@@ -178,6 +202,48 @@ class CComplex(ctypes.Structure):
     def to_python(self):
         """Convert to Python complex"""
         return complex(self.real, self.imag)
+
+class QuantumGateC(ctypes.Structure):
+    """C quantum gate structure"""
+    _fields_ = [
+        ("type", ctypes.c_int),
+        ("target", ctypes.c_int),
+        ("control", ctypes.c_int),
+        ("control2", ctypes.c_int),
+        ("angle", ctypes.c_double),
+        ("phase", ctypes.c_double)
+    ]
+
+_lib.qstate_expectation_value.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(QuantumGateC)]
+
+# Density Matrix
+class CDensityMatrix(ctypes.Structure):
+    _fields_ = [
+        ("num_qubits", ctypes.c_int),
+        ("dim", ctypes.c_size_t),
+        ("data", ctypes.POINTER(CComplex)),
+        ("use_accelerate", ctypes.c_bool), # Wait, updated struct in macq.h didn't have this?
+        ("_aligned_buffer", ctypes.c_void_p)
+    ]
+
+_lib.dmatrix_create.restype = ctypes.c_void_p
+_lib.dmatrix_create.argtypes = [ctypes.c_int]
+
+_lib.dmatrix_free.restype = None
+_lib.dmatrix_free.argtypes = [ctypes.c_void_p]
+
+_lib.dmatrix_from_qstate.restype = ctypes.c_void_p
+_lib.dmatrix_from_qstate.argtypes = [ctypes.c_void_p]
+
+_lib.dmatrix_partial_trace.restype = ctypes.c_int
+_lib.dmatrix_partial_trace.argtypes = [
+    ctypes.c_void_p, ctypes.c_int, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_void_p)
+]
+
+_lib.dmatrix_export_data.restype = ctypes.c_int
+_lib.dmatrix_export_data.argtypes = [
+    ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double)
+]
 
 # Utility
 _lib.qstate_get_amplitude.restype = CComplex
@@ -407,9 +473,111 @@ class QuantumState:
         """
         vec = self.get_statevector()
         return np.abs(vec) ** 2
-    
+
+    def sample_counts(self, shots: int) -> dict:
+        """
+        Perform weighted random sampling based on current state probabilities.
+        
+        Args:
+            shots: Number of measurement repetitions
+            
+        Returns:
+            Dictionary mapping basis states (binary strings) to counts
+        """
+        if shots <= 0:
+            return {}
+            
+        probs = self.probabilities()
+        # Ensure probabilities sum to 1 (handling tiny precision errors)
+        probs /= np.sum(probs)
+        
+        indices = np.arange(self.vector_size)
+        samples = np.random.choice(indices, size=shots, p=probs)
+        
+        counts = {}
+        for s in samples:
+            bin_str = f"{s:0{self.num_qubits}b}"
+            counts[bin_str] = counts.get(bin_str, 0) + 1
+            
+        return counts
+
     def __repr__(self) -> str:
         return f"QuantumState(num_qubits={self.num_qubits}, norm={self.norm():.6f})"
+        
+    # Noise methods
+    def apply_amplitude_damping(self, target: int, rate: float) -> 'QuantumState':
+        """Apply amplitude damping noise stochastic model"""
+        _lib.qstate_apply_amplitude_damping(self._ptr, target, rate)
+        return self
+        
+    def apply_phase_damping(self, target: int, rate: float) -> 'QuantumState':
+        """Apply phase damping noise stochastic model"""
+        _lib.qstate_apply_phase_damping(self._ptr, target, rate)
+        return self
+        
+    def apply_depolarizing(self, target: int, rate: float) -> 'QuantumState':
+        """Apply depolarizing noise stochastic model"""
+        _lib.qstate_apply_depolarizing(self._ptr, target, rate)
+        return self
+
+    def expectation_value(self, gates: List[Tuple]) -> float:
+        """Compute expectation value for a sequence of gates treated as an operator"""
+        num_gates = len(gates)
+        gates_array = (QuantumGateC * num_gates)()
+        for i, g in enumerate(gates):
+            # Tuples like (type, target, control, control2, angle, phase)
+            gates_array[i].type = g[0]
+            gates_array[i].target = g[1]
+            gates_array[i].control = g[2] if len(g) > 2 else -1
+            gates_array[i].control2 = g[3] if len(g) > 3 else -1
+            gates_array[i].angle = g[4] if len(g) > 4 else 0.0
+            gates_array[i].phase = g[5] if len(g) > 5 else 0.0
+        return _lib.qstate_expectation_value(self._ptr, num_gates, gates_array)
+
+class DensityMatrix:
+    """Python wrapper for C DensityMatrix"""
+    
+    def __init__(self, num_qubits: int):
+        self._ptr = _lib.dmatrix_create(num_qubits)
+        if not self._ptr:
+            raise MemoryError("Failed to create density matrix")
+        self.num_qubits = num_qubits
+        self.dim = 2 ** num_qubits
+        
+    def __del__(self):
+        if hasattr(self, '_ptr') and self._ptr:
+            _lib.dmatrix_free(self._ptr)
+            
+    @classmethod
+    def from_statevector(cls, qs: QuantumState) -> 'DensityMatrix':
+        dm = cls.__new__(cls)
+        dm._ptr = _lib.dmatrix_from_qstate(qs._ptr)
+        dm.num_qubits = qs.num_qubits
+        dm.dim = qs.vector_size
+        return dm
+        
+    def partial_trace(self, qubits_to_trace: List[int]) -> 'DensityMatrix':
+        num_trace = len(qubits_to_trace)
+        q_array = (ctypes.c_int * num_trace)(*qubits_to_trace)
+        dst_ptr = ctypes.c_void_p()
+        err = _lib.dmatrix_partial_trace(self._ptr, num_trace, q_array, ctypes.byref(dst_ptr))
+        if err != MacQError.SUCCESS:
+            raise RuntimeError(f"Partial trace failed with error {err}")
+            
+        new_dm = DensityMatrix.__new__(DensityMatrix)
+        new_dm._ptr = dst_ptr
+        new_dm.num_qubits = self.num_qubits - num_trace
+        new_dm.dim = 2 ** new_dm.num_qubits
+        return new_dm
+        
+    def to_numpy(self) -> np.ndarray:
+        """Export to 2D numpy array"""
+        real = np.zeros(self.dim * self.dim, dtype=np.float64)
+        imag = np.zeros(self.dim * self.dim, dtype=np.float64)
+        _lib.dmatrix_export_data(self._ptr, 
+                                 real.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+                                 imag.ctypes.data_as(ctypes.POINTER(ctypes.c_double)))
+        return (real + 1j * imag).reshape((self.dim, self.dim))
 
 
 def version() -> str:

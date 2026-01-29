@@ -7,7 +7,7 @@ from typing import List, Set, Optional
 from .parser import (
     Program, TimeStep, GateOperation,
     SingleQubitGate, TwoQubitGate, ThreeQubitGate,
-    MeasurementNode, ConditionalNode, ModularGate, QFTNode
+    MeasurementNode, ConditionalNode, ModularGate, QFTNode, QubitsNode
 )
 
 
@@ -97,6 +97,8 @@ class QLangValidator:
             self._validate_conditional(operation)
         elif isinstance(operation, QFTNode):
             self._validate_qft(operation)
+        elif isinstance(operation, QubitsNode):
+            pass
     
     def _validate_single_qubit_gate(self, gate: SingleQubitGate):
         """Validate single-qubit gate"""

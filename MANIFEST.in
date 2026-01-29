@@ -1,0 +1,11 @@
+include LICENSE
+include README.md
+include macq/gui/*.png
+include macq/gui/*.ico
+recursive-include docs *.md
+recursive-include c_engine/include *.h
+recursive-include c_engine/src *.c
+include *.ql
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .DS_Store

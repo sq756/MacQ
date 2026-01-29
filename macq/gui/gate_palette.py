@@ -183,11 +183,10 @@ class GatePaletteWidget(QWidget):
                 padding: 10px;
             }}
             QPushButton:hover {{
-                transform: scale(1.02);
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+                background: {gradient};
             }}
             QPushButton:pressed {{
-                transform: scale(0.98);
+                background: {gradient};
             }}
         """)
         

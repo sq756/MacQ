@@ -23,7 +23,7 @@ extern "C" {
 // ============================================================================
 
 /** Complex number type (C99 standard) */
-typedef double complex cplx;
+typedef double _Complex cplx;
 
 /** Quantum state structure */
 typedef struct {
@@ -67,6 +67,14 @@ typedef struct {
   double phase;  /**< Phase parameter */
 } QuantumGate;
 
+/** Density matrix structure */
+typedef struct {
+  int num_qubits;        /**< Number of qubits */
+  size_t dim;            /**< Matrix dimension (2^num_qubits) */
+  cplx *data;            /**< Matrix data (dim x dim) */
+  void *_aligned_buffer; /**< Aligned memory buffer */
+} DensityMatrix;
+
 /** Error codes */
 typedef enum {
   MACQ_SUCCESS = 0,
@@ -74,7 +82,8 @@ typedef enum {
   MACQ_ERROR_OUT_OF_MEMORY = -2,
   MACQ_ERROR_INVALID_GATE = -3,
   MACQ_ERROR_INVALID_INDEX = -4,
-  MACQ_ERROR_NULL_POINTER = -5
+  MACQ_ERROR_NULL_POINTER = -5,
+  MACQ_ERROR_DIMENSION_MISMATCH = -6
 } MacQError;
 
 // ============================================================================
@@ -382,6 +391,75 @@ MacQError qstate_set_amplitude(QuantumState *qs, size_t basis_index,
  * @param qs Quantum state
  */
 void qstate_print_info(const QuantumState *qs);
+
+// ============================================================================
+// Density Matrix Operations
+// ============================================================================
+
+/**
+ * Create a density matrix for specified number of qubits.
+ * Initializes to zero matrix.
+ */
+DensityMatrix *dmatrix_create(int num_qubits);
+
+/**
+ * Free density matrix memory.
+ */
+void dmatrix_free(DensityMatrix *dm);
+
+/**
+ * Create a density matrix from a state vector |ψ⟩⟨ψ|.
+ */
+DensityMatrix *dmatrix_from_qstate(const QuantumState *qs);
+
+/**
+ * Compute partial trace of a density matrix.
+ * traces out specified qubits.
+ */
+MacQError dmatrix_partial_trace(const DensityMatrix *src,
+                                int num_qubits_to_trace,
+                                const int *qubits_to_trace,
+                                DensityMatrix **dst);
+
+/**
+ * Export density matrix data to separate real and imaginary arrays.
+ */
+MacQError dmatrix_export_data(const DensityMatrix *dm, double *real_part,
+                              double *imag_part);
+
+// ============================================================================
+// Noise Channels
+// ============================================================================
+
+/**
+ * Apply amplitude damping noise to a target qubit.
+ * rate: Probability of decay [0, 1]
+ */
+MacQError qstate_apply_amplitude_damping(QuantumState *qs, int target,
+                                         double rate);
+
+/**
+ * Apply phase damping noise to a target qubit.
+ * rate: Probability of phase flip [0, 1]
+ */
+MacQError qstate_apply_phase_damping(QuantumState *qs, int target, double rate);
+
+/**
+ * Apply depolarizing noise to a target qubit.
+ * rate: Probability of total depolarization [0, 3/4]
+ */
+MacQError qstate_apply_depolarizing(QuantumState *qs, int target, double rate);
+
+// ============================================================================
+// Hamiltonian & Expectation Values
+// ============================================================================
+
+/**
+ * Compute the expectation value of an observable ⟨ψ|O|ψ⟩.
+ * This is a simplified version for Pauli strings or similar.
+ */
+double qstate_expectation_value(const QuantumState *qs, int num_gates,
+                                const QuantumGate *gates);
 
 /**
  * Get library version string.

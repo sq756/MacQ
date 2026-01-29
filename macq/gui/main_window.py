@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QStatusBar, QMenuBar, QMenu, QToolBar,
     QLabel, QPushButton, QMessageBox, QGraphicsDropShadowEffect, QSpinBox, 
-    QScrollArea
+    QScrollArea, QGroupBox, QRadioButton, QSlider, QDoubleSpinBox, QCheckBox
 )
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QAction, QKeySequence, QColor, QIcon
@@ -86,8 +86,58 @@ class MainWindow(QMainWindow):
         center_splitter.setSizes([500, 300]) # 5:3 ratio
         main_splitter.addWidget(center_splitter)
         
-        # Right: Visualizer
-        main_splitter.addWidget(self.visualizer)
+        # Right: Visualizer & Settings
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Simulation Settings Group
+        self.settings_group = QGroupBox("🧪 实验配置 (Simulation Settings)")
+        self.settings_group.setStyleSheet("""
+            QGroupBox {
+                background: rgba(40, 44, 65, 0.4);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 12px;
+                padding-top: 25px;
+                margin-top: 10px;
+                font-weight: bold;
+                color: #A0A0A0;
+            }
+        """)
+        settings_layout = QVBoxLayout(self.settings_group)
+        
+        # Mode Toggle
+        mode_layout = QHBoxLayout()
+        self.ideal_radio = QRadioButton("Ideal (理论)")
+        self.noisy_radio = QRadioButton("Noisy (实验)")
+        self.ideal_radio.setChecked(True)
+        mode_layout.addWidget(self.ideal_radio)
+        mode_layout.addWidget(self.noisy_radio)
+        settings_layout.addLayout(mode_layout)
+        
+        # Shots Control
+        shots_layout = QHBoxLayout()
+        shots_layout.addWidget(QLabel("Shots (采样):"))
+        self.shots_spin = QSpinBox()
+        self.shots_spin.setRange(1, 100000)
+        self.shots_spin.setValue(1024)
+        shots_layout.addWidget(self.shots_spin)
+        settings_layout.addLayout(shots_layout)
+        
+        # Noise Level
+        noise_layout = QHBoxLayout()
+        noise_layout.addWidget(QLabel("Noise Level (噪声):"))
+        self.noise_spin = QDoubleSpinBox()
+        self.noise_spin.setRange(0.0, 1.0)
+        self.noise_spin.setSingleStep(0.01)
+        self.noise_spin.setValue(0.01)
+        noise_layout.addWidget(self.noise_spin)
+        settings_layout.addLayout(noise_layout)
+        
+        right_layout.addWidget(self.settings_group)
+        right_layout.addWidget(self.visualizer)
+        
+        main_splitter.addWidget(right_panel)
         
         # Set initial sizes for the main splitter (e.g., 1:2:1)
         main_splitter.setSizes([200, 800, 400])
@@ -165,6 +215,26 @@ class MainWindow(QMainWindow):
         run_action.setShortcut(Qt.Key_F5)
         run_action.triggered.connect(self._run_circuit)
         circuit_menu.addAction(run_action)
+        
+        optimize_action = QAction("优化电路(&O)", self)
+        optimize_action.triggered.connect(self.circuit_editor.optimize_circuit)
+        circuit_menu.addAction(optimize_action)
+        
+        circuit_menu.addSeparator()
+        
+        hamiltonian_action = QAction("查看哈密顿量矩阵(&H)", self)
+        hamiltonian_action.triggered.connect(self._show_hamiltonian)
+        circuit_menu.addAction(hamiltonian_action)
+        
+        # 视图菜单 (Theme)
+        view_menu = menubar.addMenu("视图(&V)")
+        theme_menu = view_menu.addMenu("颜色主题")
+        
+        from .styles import THEMES
+        for theme_name in THEMES:
+            theme_action = QAction(theme_name, self)
+            theme_action.triggered.connect(lambda checked, name=theme_name: self._apply_theme(name))
+            theme_menu.addAction(theme_action)
         
         # 帮助菜单
         help_menu = menubar.addMenu("帮助(&H)")
@@ -275,6 +345,7 @@ class MainWindow(QMainWindow):
         
         # Q-Lang editor signals
         self.qlang_editor.code_compiled.connect(self._sync_code_to_circuit)
+        self.qlang_editor.qubit_count_detected.connect(self.qubit_spinner.setValue)
         
         # Toolbar buttons
         self.run_btn.clicked.connect(self._run_circuit)
@@ -320,28 +391,59 @@ class MainWindow(QMainWindow):
             self._clear_circuit()
             
     def _open_circuit(self):
-        """打开电路文件"""
-        # TODO: 实现电路加载
-        QMessageBox.information(
-            self, "打开电路",
-            "电路加载功能即将推出！"
+        """打开 .qlang 电路文件"""
+        from PySide6.QtWidgets import QFileDialog
+        
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "打开 Q-Lang 文件", "", "Q-Lang Files (*.qlang *.ql);;All Files (*)"
         )
+        
+        if file_path:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    code = f.read()
+                self.qlang_editor.set_code(code)
+                self.qlang_editor.compile_code()
+                self.statusBar().showMessage(f"已加载: {file_path}", 3000)
+            except Exception as e:
+                QMessageBox.critical(self, "读取错误", f"无法打开文件:\n{str(e)}")
         
     def _save_circuit(self):
-        """保存电路"""
-        # TODO: 实现电路保存
-        QMessageBox.information(
-            self, "保存电路",
-            "电路保存功能即将推出！"
+        """保存为 .qlang 电路文件"""
+        from PySide6.QtWidgets import QFileDialog
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "保存 Q-Lang 文件", "", "Q-Lang Files (*.qlang);;All Files (*)"
         )
         
+        if file_path:
+            if not file_path.endswith('.qlang'):
+                file_path += '.qlang'
+            try:
+                code = self.qlang_editor.get_code()
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(code)
+                self.statusBar().showMessage(f"已保存: {file_path}", 3000)
+            except Exception as e:
+                QMessageBox.critical(self, "保存错误", f"无法保存文件:\n{str(e)}")
+        
     def _export_image(self):
-        """导出电路图片"""
-        # TODO: 实现图片导出
-        QMessageBox.information(
-            self, "导出图片",
-            "图片导出功能即将推出！"
+        """导出电路图片 (PNG/JPG)"""
+        from PySide6.QtWidgets import QFileDialog
+        from PySide6.QtGui import QPixmap
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "导出电路图片", "", "Images (*.png *.jpg);;All Files (*)"
         )
+        
+        if file_path:
+            try:
+                # Grab the circuit editor content
+                pixmap = self.circuit_editor.grab()
+                pixmap.save(file_path)
+                self.statusBar().showMessage(f"已导出图片: {file_path}", 3000)
+            except Exception as e:
+                QMessageBox.critical(self, "导出错误", f"无法导出图片:\n{str(e)}")
         
     def _clear_circuit(self):
         """清空电路"""
@@ -361,27 +463,82 @@ class MainWindow(QMainWindow):
             self.qubit_spinbox.setValue(current - 1)
             
     def _run_circuit(self):
-        """运行电路"""
+        """运行电路，支持 Ideal vs Experimental 模式"""
         try:
             self.status_label.setText("正在执行电路...")
             
-            # 执行电路
-            result_state = self.circuit_editor.execute_circuit()
+            # 读取模拟配置
+            is_noisy = self.noisy_radio.isChecked()
+            shots = self.shots_spin.value()
+            noise_level = self.noise_spin.value() if is_noisy else 0.0
+            
+            # 1. 执行电路 (获取理论态)
+            result_state = self.circuit_editor.execute_circuit(noise_level=noise_level)
             
             if result_state:
-                # 更新可视化
-                self.visualizer.update_state(result_state)
-                self.status_label.setText("电路执行完成")
+                # 2. 如果是实验模式，进行采样
+                counts = None
+                if is_noisy:
+                    self.status_label.setText(f"正在进行实验采样 (Shots: {shots})...")
+                    counts = result_state.sample_counts(shots)
+                
+                # 3. 更新可视化
+                # 注意：如果是 Noisy 模式，result_state 是带噪态，theo_probs 将反映噪声后的分布
+                self.visualizer.update_state(result_state, counts=counts, shots=shots if is_noisy else None)
+                
+                self.status_label.setText("电路运行完成" + (" (Noisy/Experimental)" if is_noisy else " (Ideal)"))
             else:
                 self.status_label.setText("电路为空")
                 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             QMessageBox.critical(
                 self, "执行错误",
                 f"电路执行时发生错误:\n{str(e)}"
             )
             self.status_label.setText("执行失败")
             
+    def _show_hamiltonian(self):
+        """计算并显示电路的哈密顿量/幺正矩阵"""
+        from .hamiltonian_dialog import HamiltonianDialog
+        
+        try:
+            # Sync qubit count before calculation
+            self.circuit_editor.num_qubits = self.qubit_spinner.value()
+            self.status_label.setText("正在计算矩阵...")
+            
+            # 计算矩阵
+            matrix = self.circuit_editor.get_circuit_unitary()
+            
+            # 显示对话框
+            dialog = HamiltonianDialog(matrix, self)
+            dialog.exec()
+            
+            self.status_label.setText("矩阵计算完成")
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self, "计算错误",
+                f"计算哈密顿量矩阵时发生错误:\n{str(e)}"
+            )
+            self.status_label.setText("计算失败")
+            
+    def _apply_theme(self, theme_name):
+        """切换应用主题"""
+        from .styles import THEMES
+        theme = THEMES.get(theme_name)
+        if not theme: return
+        
+        self.setStyleSheet(theme.main_window)
+        self.gate_palette.setStyleSheet(theme.palette)
+        self.circuit_editor.setStyleSheet(theme.circuit)
+        self.visualizer.setStyleSheet(theme.visualizer)
+        self.run_btn.setStyleSheet(theme.run_btn)
+        self.clear_btn.setStyleSheet(theme.clear_btn)
+        
+        self.status_label.setText(f"已切换主题: {theme_name}")
+        
     def _show_about(self):
         """显示关于对话框"""
         QMessageBox.about(

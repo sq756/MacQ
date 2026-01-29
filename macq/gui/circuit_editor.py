@@ -161,6 +161,19 @@ class CircuitEditorWidget(QWidget):
         self.gate_added.emit(gate_type, qubit)
         self.circuit_changed.emit()
     
+    def optimize_circuit(self):
+        """优化电路：使用核心优化引擎简化门操作"""
+        if not self.gates: return
+        
+        from ..core.optimizer import CircuitOptimizer
+        optimized_gates = CircuitOptimizer.simplify_pauli_strings(self.gates, self.num_qubits)
+        
+        # 更新显示用的门列表
+        self.gates = optimized_gates
+        self._update_size()
+        self.update()
+        self.circuit_changed.emit()
+    
     def sizeHint(self):
         """计算推荐大小"""
         max_ts = 0
@@ -182,13 +195,13 @@ class CircuitEditorWidget(QWidget):
             return 0
         return max(occupied) + 1
     
-    def execute_circuit(self):
-        """执行电路并返回量子态"""
+    def execute_circuit(self, initial_state=None, noise_level=0.0):
+        """执行电路并返回量子态，支持噪声模型"""
         if not self.gates:
-            return None
+            return initial_state
         
-        # 创建量子态
-        qs = QuantumState(self.num_qubits)
+        # 创建或使用初始量子态
+        qs = initial_state if initial_state else QuantumState(self.num_qubits)
         
         # 按time_step排序门
         sorted_gates = sorted(self.gates, key=lambda g: g['time_step'])
@@ -198,63 +211,35 @@ class CircuitEditorWidget(QWidget):
             gate_type = gate['type']
             qubit = gate['qubit']
             control = gate.get('control')
+            control2 = gate.get('control2')
+            params = gate.get('params', {})
             
+            applied = False
             try:
-                # 单量子比特门
+                # 1. Single Qubit Gates
                 if gate_type == 'H':
                     qs.h(qubit)
+                    applied = True
                 elif gate_type == 'X':
                     qs.x(qubit)
+                    applied = True
                 elif gate_type == 'Y':
                     qs.y(qubit)
+                    applied = True
                 elif gate_type == 'Z':
                     qs.z(qubit)
+                    applied = True
                 elif gate_type == 'S':
                     qs.s(qubit)
+                    applied = True
                 elif gate_type == 'T':
                     qs.t(qubit)
-                elif gate_type == 'I':
-                    pass  # 单位门不做任何操作
+                    applied = True
                 
-                # 双量子比特门
-                elif gate_type == 'CNOT' and control is not None:
-                    qs.cnot(control, qubit)
-                elif gate_type == 'CZ' and control is not None:
-                    qs.cz(control, qubit)
-                elif gate_type == 'SWAP' and control is not None:
-                    qs.swap(control, qubit)
-                
-                # 三量子比特门
-                elif gate_type == 'Toffoli':
-                    if 'control2' in gate:
-                        qs.toffoli(control, gate['control2'], qubit)
-                    elif qubit >= 2:
-                        # Fallback for old gate format
-                        qs.toffoli(qubit-2, qubit-1, qubit)
-                
-                # v2.0 Gates
-                elif gate_type == 'MEASURE':
-                    qs.measure(qubit)
-                    
-                elif gate_type in ['QFT', 'QFT_INV']:
-                    params = gate.get('params', {})
-                    q_list = params.get('qubits', [qubit])
-                    is_inv = params.get('is_inverse', gate_type == 'QFT_INV')
-                    qs.qft(q_list, inverse=is_inv)
-                    
-                elif gate_type == 'MOD_EXP':
-                    params = gate.get('params', {})
-                    base = params.get('base', 2)
-                    mod = params.get('modulus', 1)
-                    ctrls = params.get('control_qubits', [])
-                    tgts = params.get('target_qubits', [])
-                    if ctrls and tgts:
-                        qs.mod_exp(base, mod, ctrls, tgts)
-                
+                # 2. Rotation Gates
                 elif gate_type in ['Rx', 'Ry', 'Rz']:
-                    angle = gate.get('params', {}).get('angle', 0.0)
+                    angle = params.get('angle', 0.0)
                     if isinstance(angle, str):
-                        # Handle basic math expressions like pi/2
                         import math
                         angle = angle.replace('π', 'math.pi').replace('pi', 'math.pi')
                         try:
@@ -265,11 +250,80 @@ class CircuitEditorWidget(QWidget):
                     if gate_type == 'Rx': qs.rx(qubit, angle)
                     elif gate_type == 'Ry': qs.ry(qubit, angle)
                     elif gate_type == 'Rz': qs.rz(qubit, angle)
+                    applied = True
+                
+                # 3. Two-Qubit Gates
+                elif gate_type == 'CNOT' and control is not None:
+                    qs.cnot(control, qubit)
+                    applied = True
+                elif gate_type == 'CZ' and control is not None:
+                    qs.cz(control, qubit)
+                    applied = True
+                elif gate_type == 'SWAP' and control is not None:
+                    qs.swap(control, qubit)
+                    applied = True
+                
+                # 4. Three-Qubit Gates
+                elif gate_type == 'Toffoli':
+                    c1 = control
+                    c2 = control2
+                    if c2 is None and qubit >= 2: # Fallback
+                        c1, c2 = qubit-2, qubit-1
+                    if c1 is not None and c2 is not None:
+                        qs.toffoli(c1, c2, qubit)
+                        applied = True
+                
+                # 5. v2.0 & Complex Gates
+                elif gate_type == 'MEASURE':
+                    qs.measure(qubit)
+                    applied = True
+                elif gate_type in ['QFT', 'QFT_INV']:
+                    q_list = params.get('qubits', list(range(self.num_qubits)))
+                    qs.qft(q_list, inverse=(gate_type == 'QFT_INV'))
+                    applied = True
+                elif gate_type == 'MOD_EXP':
+                    a = params.get('a', 2)
+                    N = params.get('N', 15)
+                    ctrls = params.get('controls', [])
+                    tgts = params.get('targets', [])
+                    if ctrls and tgts:
+                        qs.mod_exp(a, N, ctrls, tgts)
+                        applied = True
+
+                # Noise Injection
+                if applied and noise_level > 0:
+                    # Apply noise to all participating qubits
+                    qs.apply_depolarizing(qubit, noise_level * 0.5)
+                    qs.apply_amplitude_damping(qubit, noise_level * 0.5)
+                    if control is not None:
+                        qs.apply_depolarizing(control, noise_level * 0.5)
+                    if control2 is not None:
+                        qs.apply_depolarizing(control2, noise_level * 0.5)
 
             except Exception as e:
-                print(f"Error applying gate {gate_type}: {e}")
+                print(f"Error applying gate {gate_type} on q{qubit}: {e}")
         
         return qs
+    
+    def get_circuit_unitary(self):
+        """计算当前电路的完整幺正矩阵（哈密顿量相关）"""
+        size = 2 ** self.num_qubits
+        import numpy as np
+        matrix = np.zeros((size, size), dtype=np.complex128)
+        
+        for i in range(size):
+            # 创建对应基态的初始态
+            qs = QuantumState(self.num_qubits)
+            bitstring = bin(i)[2:].zfill(self.num_qubits)[::-1]
+            qs.init_basis(bitstring)
+            
+            # 运行电路
+            final_qs = self.execute_circuit(initial_state=qs)
+            
+            # 提取结果向量作为矩阵的一列
+            matrix[:, i] = final_qs.get_statevector()
+            
+        return matrix
     
     def dragEnterEvent(self, event):
         """拖拽进入事件"""
@@ -309,7 +363,7 @@ class CircuitEditorWidget(QWidget):
         painter.setPen(pen)
         
         # 字体
-        font = QFont("SF Pro Display", 13)
+        font = QFont(".AppleSystemUIFont", 13)
         font.setBold(True)
         painter.setFont(font)
         

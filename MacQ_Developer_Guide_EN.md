@@ -1,7 +1,7 @@
 # MacQ: Mac-Native Quantum Computing Software - Complete Developer Guide
 
-**Version**: 2.0  
-**Last Updated**: January 2026  
+**Version**: 2.1  
+**Last Updated**: January 29, 2026  
 **Project Type**: macOS Desktop Application (C-Powered Core Engine)
 
 ---
@@ -35,7 +35,7 @@
 > **Core Characteristics**:
 > - ✅ **C Language Native Engine**: 100% pure C-written quantum state computation core
 > - ✅ **macOS Native Application**: Not a web app, not a Python script, but a true desktop software
-> - ✅ **Apple Silicon Optimization**: Integrated with Accelerate framework, fully leveraging M-series chip SIMD acceleration
+> - ✅ **Apple Silicon Optimization**: Integrated with Accelerate framework, GCD multi-threading, and ARM NEON SIMD acceleration.
 > - ✅ **Qt Desktop Interface**: GUI layer built with PySide6 (Qt for Python)
 > - ✅ **Zero External Dependencies**: Core engine requires no third-party libraries, only macOS system frameworks
 
@@ -86,7 +86,7 @@ graph TB
 |------|------------------|----------------|-------------------|
 | **GUI Layer** | PySide6 (Qt 6) | Visual quantum block editor, real-time chart rendering | 60fps UI response |
 | **Bridge Layer** | Python ctypes + NumPy | C/Python type conversion, memory sharing | <1ms call latency |
-| **Engine Layer** | C + Accelerate Framework | Quantum state operations, SIMD acceleration, gate circuit execution | 1M gates/sec |
+| **Engine Layer** | C + Accelerate + GCD + SIMD | Quantum state operations, multi-threading, noise models, density matrices | >1M gates/sec |
 
 ### 2.2 Why Choose C Language Core?
 
@@ -637,9 +637,10 @@ result.plot_probabilities()
 - [ ] Circuit export to QASM format
 
 ### 2026 Q3
+- [x] Noise model support
+- [x] Density matrix subsystem analysis
 - [ ] Bloch sphere 3D visualization
 - [ ] Quantum state tomography
-- [ ] Noise model support
 
 ### 2026 Q4
 - [ ] Hardware backend integration (IBM Q, IonQ)

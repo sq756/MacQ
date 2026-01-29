@@ -10,14 +10,18 @@ from .c_bridge import (
     QuantumState,
     GateType,
     MacQError,
+    DensityMatrix,
     version
 )
+from .core.circuit import Circuit
 
 __all__ = [
     'QuantumState',
     'GateType',
     'MacQError',
+    'DensityMatrix',
+    'Circuit',
     'version'
 ]
 
-__version__ = '1.0.0'
+__version__ = '1.2.0'

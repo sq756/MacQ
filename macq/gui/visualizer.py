@@ -46,9 +46,17 @@ class VisualizationWidget(QWidget):
         # 标签页
         self.tabs = QTabWidget()
         
-        # 概率分布图
+        # 概率分布图 (Histogram 2.0)
         self.prob_chart = ProbabilityChart()
-        self.tabs.addTab(self.prob_chart, "📊 概率分布")
+        self.tabs.addTab(self.prob_chart, "📊 统计直方图")
+        
+        # 密度矩阵热力图
+        self.heatmap_view = HeatmapView()
+        self.tabs.addTab(self.heatmap_view, "🌡️ 密度矩阵")
+        
+        # 相位盘
+        self.phase_disks = PhaseDiskView()
+        self.tabs.addTab(self.phase_disks, "🧭 相位盘")
         
         # 态向量视图
         self.state_view = StateVectorView()
@@ -56,12 +64,25 @@ class VisualizationWidget(QWidget):
         
         layout.addWidget(self.tabs)
         
-    def update_state(self, quantum_state):
+    def update_state(self, quantum_state, density_matrix=None, counts=None, shots=None):
         """更新量子态显示"""
         self.current_state = quantum_state
         
-        # 更新概率图
-        self.prob_chart.update_probabilities(quantum_state)
+        # 更新概率图 (Histogram 2.0)
+        self.prob_chart.update_data(quantum_state, counts, shots)
+        
+        # 更新热力图
+        if density_matrix:
+            self.heatmap_view.update_heatmap(density_matrix)
+        elif quantum_state:
+            # 如果没有显式传DM，可以从QS生成（小规模比特）
+            if quantum_state.num_qubits <= 6:
+                from ..c_bridge import DensityMatrix
+                dm = DensityMatrix.from_statevector(quantum_state)
+                self.heatmap_view.update_heatmap(dm)
+        
+        # 更新相位盘
+        self.phase_disks.update_disks(quantum_state)
         
         # 更新态向量
         self.state_view.update_state(quantum_state)
@@ -70,6 +91,8 @@ class VisualizationWidget(QWidget):
         """清空显示"""
         self.current_state = None
         self.prob_chart.clear()
+        self.heatmap_view.clear()
+        self.phase_disks.clear()
         self.state_view.clear()
 
 
@@ -93,105 +116,53 @@ class ProbabilityChart(FigureCanvasQTAgg):
         self.axes.spines['top'].set_visible(False)
         self.axes.spines['right'].set_visible(False)
         
-    def update_probabilities(self, state):
-        """更新概率显示 - 智能优化版本"""
-        probs = state.probabilities()
+    def update_data(self, state, counts=None, shots=None):
+        """更新概率显示 - Histogram 2.0 (理论 vs 实验)"""
+        theo_probs = state.probabilities()
         num_qubits = state.num_qubits
         
         self.axes.clear()
         
-        # 智能显示：只显示概率>阈值的基态
-        threshold = 0.001  # 0.1%
-        significant_indices = [i for i, p in enumerate(probs) if p > threshold]
+        # 智能选择显示的前 N 个基态
+        threshold = 0.001
+        significant_indices = [i for i, p in enumerate(theo_probs) if p > threshold]
         
-        # 如果显著的基态少于10个，显示全部
-        if len(significant_indices) == 0:
-            significant_indices = list(range(min(10, len(probs))))
-        elif len(significant_indices) > 20:
-            # 太多的话，只显示Top 20
-            sorted_indices = sorted(range(len(probs)), key=lambda i: probs[i], reverse=True)
-            significant_indices = sorted(sorted_indices[:20])
+        if counts:
+            # 如果有采样数据，也包含采样中出现的索引
+            for bin_str, _ in counts.items():
+                idx = int(bin_str, 2)
+                if idx not in significant_indices:
+                    significant_indices.append(idx)
         
-        # 提取显著概率
-        sig_probs = [probs[i] for i in significant_indices]
-        # 使用简单二进制标签 (寄存器拆分显示)
-        labels = []
-        for i in significant_indices:
-            bin_str = f"{i:0{num_qubits}b}"
-            if num_qubits == 8:
-                # 专门为 Shor 算法优化：[目标寄存器 4位] [控制寄存器 4位]
-                labels.append(f"T:{bin_str[:4]} C:{bin_str[4:]}")
-            elif num_qubits > 8:
-                labels.append(f"{bin_str[:-4]} {bin_str[-4:]}")
-            else:
-                labels.append(bin_str)
+        significant_indices = sorted(significant_indices)
+        if len(significant_indices) > 24:
+            significant_indices = significant_indices[:24]
+            
+        labels = [f"{i:0{num_qubits}b}" for i in significant_indices]
+        theo_vals = [theo_probs[i] for i in significant_indices]
         
-        # 创建渐变颜色
-        colors = []
-        for p in sig_probs:
-            # 根据概率大小设置颜色：高概率=亮蓝色，低概率=暗蓝色
-            intensity = 0.3 + 0.7 * (p / max(sig_probs)) if max(sig_probs) > 0 else 0.5
-            colors.append((0.29 * intensity, 0.56 * intensity, 0.89 * intensity))
+        x = np.arange(len(labels))
+        width = 0.35 if counts else 0.7
         
-        # 绘制柱状图 - 加宽柱子
-        bar_width = 0.7
-        bars = self.axes.bar(range(len(sig_probs)), sig_probs, 
-                            width=bar_width,
-                            color=colors, 
-                            edgecolor='white', 
-                            linewidth=2,
-                            alpha=0.95)
+        # 绘制理论值 (空心/浅色)
+        self.axes.bar(x - (width/2 if counts else 0), theo_vals, width, 
+                     label='理论值', color='#4A90E2', alpha=0.3, edgecolor='#4A90E2', hatch='//')
         
-        # 高亮最高概率
-        if sig_probs:
-            max_idx = sig_probs.index(max(sig_probs))
-            bars[max_idx].set_color('#FF6B9D')
-            bars[max_idx].set_edgecolor('#FF1744')
-            bars[max_idx].set_linewidth(3)
-        
-        # 设置标题和标签
-        self.axes.set_title(
-            f'{num_qubits}量子比特 - 概率分布',
-            fontsize=15,
-            fontweight='bold',
-            color='#2C3E50',
-            pad=20
-        )
-        
-        self.axes.set_xlabel('二进制态 (MSB...LSB)', fontsize=12, color='#555', fontweight='600')
-        self.axes.set_ylabel('概率', fontsize=12, color='#555', fontweight='600')
-        self.axes.set_ylim([0, min(1.1, max(sig_probs) * 1.25) if sig_probs else 1])
-        
-        # 设置x轴
-        self.axes.set_xticks(range(len(sig_probs)))
-        self.axes.set_xticklabels(labels, rotation=0, ha='center', fontsize=11, fontweight='bold')
-        
-        # 美化网格
-        self.axes.grid(True, axis='y', alpha=0.15, linestyle='--', linewidth=1)
-        self.axes.set_axisbelow(True)
-        
-        # 移除顶部和右侧边框
-        self.axes.spines['top'].set_visible(False)
-        self.axes.spines['right'].set_visible(False)
-        self.axes.spines['left'].set_color('#CCCCCC')
-        self.axes.spines['bottom'].set_color('#CCCCCC')
-        self.axes.spines['left'].set_linewidth(1.5)
-        self.axes.spines['bottom'].set_linewidth(1.5)
-        
-        # 在柱子上显示概率值
-        for i, (bar, prob) in enumerate(zip(bars, sig_probs)):
-            if prob > 0.01:  # 显示>1%的
-                height = bar.get_height()
-                self.axes.text(
-                    bar.get_x() + bar.get_width()/2., 
-                    height + 0.015,
-                    f'{prob*100:.1f}%',
-                    ha='center', 
-                    va='bottom',
-                    fontsize=10,
-                    fontweight='bold',
-                    color='#FF1744' if i == max_idx else '#2C3E50'
-                )
+        # 绘制实验值 (实心)
+        if counts and shots:
+            exp_vals = [counts.get(l, 0) / shots for l in labels]
+            error = [np.sqrt(v * (1-v) / shots) if shots > 0 else 0 for v in exp_vals]
+            
+            self.axes.bar(x + width/2, exp_vals, width, label='实验值', color='#FF6B9D', alpha=0.9)
+            self.axes.errorbar(x + width/2, exp_vals, yerr=error, fmt='none', ecolor='#2C3E50', capsize=3)
+            self.axes.legend()
+
+        # 美化
+        self.axes.set_title(f'量子态统计 (Shots={shots if shots else "∞"})', fontsize=14, fontweight='bold')
+        self.axes.set_xticks(x)
+        self.axes.set_xticklabels(labels, rotation=45, ha='right', fontsize=9)
+        self.axes.set_ylim([0, max(max(theo_vals), max([counts.get(l, 0)/shots for l in labels] if counts else [0])) * 1.3 or 1.0])
+        self.axes.grid(True, axis='y', alpha=0.2)
         
         self.figure.tight_layout()
         self.draw()
@@ -199,11 +170,108 @@ class ProbabilityChart(FigureCanvasQTAgg):
     def clear(self):
         """清空图表"""
         self.axes.clear()
-        self.axes.set_title('基态概率分布')
-        self.axes.set_xlabel('基态')
-        self.axes.set_ylabel('概率')
-        self.axes.set_ylim([0, 1])
-        self.axes.grid(True, alpha=0.3)
+        self.axes.set_title('量子态统计分布')
+        self.draw()
+
+
+class HeatmapView(FigureCanvasQTAgg):
+    """密度矩阵热力图"""
+    
+    def __init__(self):
+        fig = Figure(figsize=(6, 4), dpi=100)
+        self.ax_real = fig.add_subplot(121)
+        self.ax_imag = fig.add_subplot(122)
+        super().__init__(fig)
+        
+    def update_heatmap(self, dm):
+        data = dm.to_numpy()
+        
+        self.ax_real.clear()
+        self.ax_imag.clear()
+        
+        im1 = self.ax_real.imshow(np.real(data), cmap='RdBu', vmin=-1, vmax=1)
+        self.ax_real.set_title("实部 (Real)")
+        
+        im2 = self.ax_imag.imshow(np.imag(data), cmap='RdBu', vmin=-1, vmax=1)
+        self.ax_imag.set_title("虚部 (Imag)")
+        
+        # 简单显示基态标签
+        if dm.num_qubits <= 3:
+            ticks = range(2**dm.num_qubits)
+            labels = [f"{i:0{dm.num_qubits}b}" for i in ticks]
+            self.ax_real.set_xticks(ticks)
+            self.ax_real.set_xticklabels(labels, fontsize=8, rotation=90)
+            self.ax_real.set_yticks(ticks)
+            self.ax_real.set_yticklabels(labels, fontsize=8)
+            
+        self.figure.tight_layout()
+        self.draw()
+        
+    def clear(self):
+        self.ax_real.clear()
+        self.ax_imag.clear()
+        self.draw()
+
+
+class PhaseDiskView(FigureCanvasQTAgg):
+    """相位盘可视化"""
+    
+    def __init__(self):
+        # 创建多个子图以容纳所有比特
+        fig = Figure(figsize=(8, 3), dpi=100)
+        super().__init__(fig)
+        
+    def update_disks(self, state):
+        self.figure.clear()
+        n = state.num_qubits
+        display_n = min(n, 8)
+        
+        for i in range(display_n):
+            ax = self.figure.add_subplot(1, display_n, i+1, projection='polar')
+            
+            # 简化版单比特相位：通过测量概率和相对相位估计
+            # 在 MacQ 中，我们可以直接从状态向量提取
+            # 对于比特 i，我们看 |...0...i...0...> vs |...0...1...0...> 这种基态的一个切片
+            # 或者更准确地，计算约化密度矩阵 rho_i 的非对角项
+            try:
+                from ..c_bridge import DensityMatrix
+                dm = DensityMatrix.from_statevector(state)
+                # Trace out all but qubit i
+                qubits_to_trace = [j for j in range(n) if j != i]
+                rho_i = dm.partial_trace(qubits_to_trace).to_numpy()
+                
+                # rho_i = [[rho00, rho01], [rho10, rho11]]
+                # rho11 是处于 |1> 的概率
+                prob1 = np.real(rho_i[1, 1])
+                # rho01 = <0|rho|1> = r * exp(-i*phi)
+                # 相位 phi = arg(rho01)
+                rho01 = rho_i[0, 1]
+                phase = -np.angle(rho01) if abs(rho01) > 1e-6 else 0
+                
+                radius = np.sqrt(prob1)
+                
+                # 绘制相位指针
+                ax.annotate("", xy=(phase, radius), xytext=(0, 0),
+                            arrowprops=dict(arrowstyle="->", color='#4A90E2', lw=3))
+                
+                # 绘制圆盘背景 (代表概率幅)
+                circle = plt.Circle((0, 0), 1.0, transform=ax.transData._b, color='#4A90E2', alpha=0.1)
+                ax.add_artist(circle)
+                
+            except Exception as e:
+                print(f"Phase disk error for q{i}: {e}")
+            
+            ax.set_ylim(0, 1)
+            ax.set_title(f"q{i}", fontsize=11, fontweight='bold', color='#2C3E50')
+            ax.set_yticklabels([])
+            ax.set_xticklabels([])
+            ax.grid(True, alpha=0.1)
+            
+        self.figure.tight_layout()
+        self.draw()
+        
+    def clear(self):
+        self.figure.clear()
         self.draw()
 
 

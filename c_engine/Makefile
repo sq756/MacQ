@@ -4,7 +4,7 @@
 
 # Compiler and flags
 CC = clang
-CFLAGS = -O3 -Wall -Wextra -std=c11 -march=native
+CFLAGS = -O3 -Wall -Wextra -std=c11
 CFLAGS += -I./include
 
 # macOS specific: link Accelerate framework
